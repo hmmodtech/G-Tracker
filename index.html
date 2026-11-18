@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#02060f">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<title>SOS Guard</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#02060f;--panel:rgba(7,22,40,.84);--line:#133a52;--neon:#2dffb2;--aqua:#12c9e6;--txt:#d6f5ee;--mut:#7f98a8;--sub:#6f9a8c;--warn:#ffc83d;--bad:#ff4d63;--grad:linear-gradient(90deg,#12c9e6,#2dffb2)}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:'Segoe UI',Tahoma,'Noto Sans Arabic',system-ui,sans-serif;overscroll-behavior-y:contain}
+body{min-height:100vh;background:radial-gradient(1200px 600px at 80% -10%,#0a2a45 0,transparent 60%),radial-gradient(800px 500px at 0 110%,#06303a 0,transparent 55%),#02060f}
+#mx{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:.30;pointer-events:none}
+#app{position:relative;z-index:1;max-width:560px;margin:0 auto;padding:12px 12px 40px}
+.mono{font-family:'Courier New',monospace;letter-spacing:1px}
+.glow{color:var(--neon);text-shadow:0 0 6px rgba(45,255,178,.75),0 0 20px rgba(45,255,178,.35)}
+.redn{color:var(--bad);text-shadow:0 0 8px rgba(255,77,99,.8)}
+.wn{color:var(--warn)} .mut,small{color:var(--mut)} .sub{color:var(--sub)}
+h2,h3{margin:0 0 8px} h2{font-size:20px} h3{font-size:15px;color:var(--aqua)}
+.ttl{margin:14px 4px} .sec{margin:16px 4px 4px;color:var(--sub)}
+.hd{display:flex;align-items:center;gap:10px;padding:8px 4px}
+.hd>div{flex:1;line-height:1.25} .hd small{display:block;font-size:11px;color:var(--sub)}
+.lg{width:44px;height:44px;border-radius:12px;filter:drop-shadow(0 0 8px rgba(45,255,178,.5))}
+.ic{background:var(--panel);border:1px solid var(--line);color:var(--neon);border-radius:12px;width:42px;height:42px;font-size:18px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin:10px 0;backdrop-filter:blur(6px);box-shadow:0 0 0 1px rgba(45,255,178,.03) inset,0 8px 30px rgba(0,0,0,.35)}
+.card::before,.card::after{content:'';position:absolute;width:14px;height:14px;border:2px solid var(--neon);opacity:.7;filter:drop-shadow(0 0 4px var(--neon))}
+.card::before{top:-1px;right:-1px;border-left:0;border-bottom:0;border-top-right-radius:16px}
+.card::after{bottom:-1px;left:-1px;border-right:0;border-top:0;border-bottom-left-radius:16px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px} .grid2 .card{margin:0}
+.wide{grid-column:1/-1}
+.num{font-size:34px;font-weight:700;line-height:1.1;margin:4px 0} .num span{font-size:18px;color:var(--mut)}
+.bar{height:8px;background:#0a2233;border-radius:8px;overflow:hidden;margin:8px 0}
+.bar>i{display:block;height:100%;width:0;background:var(--grad);box-shadow:0 0 12px var(--neon);transition:width .8s}
+label{display:block;margin:12px 2px 6px;color:var(--sub);font-size:13px}
+input,select,textarea{width:100%;background:#041425;border:1px solid var(--line);color:var(--txt);border-radius:12px;padding:13px;font-size:16px;font-family:inherit;outline:0}
+input:focus,select:focus,textarea:focus{border-color:var(--neon);box-shadow:0 0 12px rgba(45,255,178,.3)}
+textarea{min-height:84px;resize:vertical;margin-top:8px}
+.btn{display:block;width:100%;border:1px solid var(--line);background:#07192b;color:var(--txt);border-radius:14px;padding:14px;font-size:16px;font-weight:600;margin:10px 0;font-family:inherit}
+.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--grad);color:#02131c;border:0;box-shadow:0 0 18px rgba(45,255,178,.45)}
+.btn.bad{background:linear-gradient(90deg,#b3122b,#ff4d63);color:#fff;border:0;box-shadow:0 0 18px rgba(255,77,99,.45)}
+.btn.warn{background:#2b2306;color:var(--warn);border-color:#6b5710}
+.btn.gh{background:transparent;border-color:var(--neon);color:var(--neon)}
+.btn.big{padding:20px;font-size:19px} .btn.sm{padding:9px 14px;font-size:14px;margin:6px 0;width:auto;display:inline-block}
+.btn[disabled]{opacity:.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:#06182a;border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:11px 16px;font-size:15px;font-family:inherit}
+.chip.on{background:rgba(45,255,178,.12);border-color:var(--neon);color:var(--neon);box-shadow:0 0 12px rgba(45,255,178,.35)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.seg button{padding:16px;border-radius:14px;border:1px solid var(--line);background:#06182a;color:var(--mut);font-size:16px;font-family:inherit;font-weight:600}
+.seg .okb{background:rgba(45,255,178,.14);border-color:var(--neon);color:var(--neon);box-shadow:0 0 14px rgba(45,255,178,.4)}
+.seg .badb{background:rgba(255,77,99,.14);border-color:var(--bad);color:var(--bad);box-shadow:0 0 14px rgba(255,77,99,.4)}
+.ih{display:flex;justify-content:space-between;align-items:baseline} .it p{margin:6px 0;color:var(--txt)}
+.qrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
+.step{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:8px}
+.step button{width:46px;height:46px;border-radius:12px;border:1px solid var(--neon);background:transparent;color:var(--neon);font-size:24px}
+.step b{font-size:26px;min-width:40px;text-align:center}
+.tags{display:flex;flex-wrap:wrap;gap:8px} .tags span{background:#06182a;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px}
+.ev{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px} .ev b{color:var(--aqua)}
+.hist{display:flex;gap:10px;align-items:center;cursor:pointer}
+.tg{display:flex;align-items:center;gap:10px;margin:10px 0} .tg input{width:22px;height:22px;accent-color:#2dffb2}
+.ft{margin-top:26px;padding:14px 8px;border-top:1px solid var(--line);text-align:center;font-size:11.5px;color:var(--sub);line-height:1.8}
+.ft b{color:var(--neon)}
+.pv{width:100%;border-radius:8px;margin-bottom:10px;border:1px solid var(--line);background:#fff}
+#modal .mb{position:fixed;inset:0;background:rgba(2,6,15,.92);z-index:50;overflow:auto;padding:16px;display:flex;align-items:flex-start;justify-content:center}
+#modal .mc{width:100%;max-width:520px;background:#051325;border:1px solid var(--neon);border-radius:18px;padding:16px;margin-top:6vh;box-shadow:0 0 30px rgba(45,255,178,.25)}
+.scan video{width:100%;border-radius:14px;background:#000;max-height:50vh;object-fit:cover}
+.qrc{text-align:center;padding:12px;margin:10px 0;border:1px solid var(--line);border-radius:12px} .qrc img{width:240px;max-width:100%;background:#fff;padding:6px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#06223a;border:1px solid var(--neon);color:var(--neon);padding:12px 20px;border-radius:14px;z-index:99;display:none;max-width:90%;text-align:center;box-shadow:0 0 20px rgba(45,255,178,.4)}
+@media print{body>*:not(#modal){display:none!important}.noprint{display:none!important}#modal .mb{position:static!important;background:#fff!important}#modal .mc{background:#fff!important;color:#000!important;border:0!important;box-shadow:none!important}.qrc{page-break-inside:avoid;color:#000}}
+</style>
+</head>
+<body>
+<canvas id="mx"></canvas>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast"></div>
+<script>
+'use strict';
+/* ====== أدوات عامة ====== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const fmtT=t=>{const d=new Date(t);return pad(d.getHours())+':'+pad(d.getMinutes())};
+const fmtD=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const hms=ms=>{const s=Math.floor(ms/1000);return pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60)};
+const durTxt=ms=>{const m=Math.floor(ms/60000);return Math.floor(m/60)+'h '+pad(m%60)+'m'};
+const val=id=>{const e=document.querySelector('#'+id+' .on');return e?e.dataset.v:''};
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2800)};
+const modal=h=>{$('#modal').innerHTML='<div class="mb"><div class="mc">'+h+'</div></div>'};
+const closeModal=()=>{$('#modal').innerHTML=''};
+const render=h=>{$('#app').innerHTML=h;window.scrollTo(0,0)};
+const chips=(id,o,sel)=>'<div class="chips" id="'+id+'">'+o.map(x=>'<button type="button" class="chip '+(x.v==sel?'on':'')+'" data-v="'+esc(x.v)+'" onclick="pick(this)">'+x.t+'</button>').join('')+'</div>';
+function pick(el){el.parentNode.querySelectorAll('.chip').forEach(b=>b.classList.remove('on'));el.classList.add('on')}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+
+/* ====== قاعدة البيانات (IndexedDB) ====== */
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open('sosguard',1);r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('reports',{keyPath:'id'})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const tx=async(s,m,f)=>{const d=await dbp;return new Promise((res,rej)=>{const t=d.transaction(s,m);const q=f(t.objectStore(s));t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error)})};
+const kvGet=k=>tx('kv','readonly',s=>s.get(k));
+const kvSet=(k,v)=>tx('kv','readwrite',s=>s.put(v,k));
+const kvDel=k=>tx('kv','readwrite',s=>s.delete(k));
+const repPut=r=>tx('reports','readwrite',s=>s.put(r));
+const repGet=id=>tx('reports','readonly',s=>s.get(id));
+const repAll=()=>tx('reports','readonly',s=>s.getAll());
+
+/* ====== الإعدادات الافتراضية ====== */
+const DEF={
+ guards:Array.from({length:9},(_,i)=>({name:'حارس '+(i+1),pin:'1234'})),
+ points:[{id:'gate',ar:'البوابة',en:'Main Gate',inRound:true},{id:'bldg',ar:'بجوار المبنى',en:'Beside the Building',inRound:true}],
+ interval:120,
+ shifts:{M:{ar:'صباحي',en:'Morning',start:'07:00',end:'15:00'},E:{ar:'مسائي',en:'Evening',start:'15:00',end:'23:00'}},
+ phone:'970567144224',email:'',syncUrl:'',allowManual:true,matrix:true,sound:true,wake:true,supPin:'0000',last:0
+};
+const ITEMS=[
+ {k:'gates',ar:'البوابات والأسوار',en:'Gates & Perimeter',q:'هل جميع البوابات مغلقة ومؤمنة والأسوار سليمة؟',ok:'سليم',bad:'يوجد خلل'},
+ {k:'light',ar:'الإضاءة',en:'Lighting',q:'هل الإنارة تعمل بشكل طبيعي في كافة النقاط الحيوية؟',ok:'تعمل',bad:'يوجد خلل'},
+ {k:'safety',ar:'معدات السلامة والطوارئ',en:'Fire & Safety Equipment',q:'هل طفايات الحريق وصندوق الإسعافات في مكانها وصالحة؟',ok:'سليمة',bad:'يوجد خلل'},
+ {k:'access',ar:'سجل الزوار والمركبات',en:'Visitors & Vehicles Log',q:'هل تم تسجيل كل الزوار والمركبات في السجل الورقي؟',ok:'تم التسجيل',bad:'لم يتم / خلل'}];
+const POW=[['grid','كهرباء عامة','Grid power',1],['gen','مولد','Generator',1],['solar','طاقة شمسية','Solar',1],['none','لا توجد كهرباء','No power',0]];
+const TYPES=[['power','انقطاع كهرباء','Power outage'],['fence','اقتراب أشخاص من السور','People approaching the fence'],['gate','عطل في البوابة','Gate malfunction'],['intrude','محاولة دخول غير مصرح','Unauthorized entry attempt'],['theft','سرقة / اختراق','Theft / Breach'],['fire','حريق / دخان','Fire / Smoke'],['shell','قصف / إطلاق نار قريب','Nearby shelling / gunfire'],['injury','إصابة / حالة طبية','Injury / Medical case'],['light','عطل في الإنارة','Lighting failure'],['susp','جسم أو مركبة مشبوهة','Suspicious object / vehicle'],['other','أخرى','Other']];
+const ST={g:{ar:'عادي',en:'NORMAL',e:'🟢',c:'#16a34a'},y:{ar:'ملاحظة / تنبيه',en:'OBSERVATION',e:'🟡',c:'#d99a00'},r:{ar:'حادث أمني / طارئ',en:'INCIDENT',e:'🔴',c:'#d6213a'}};
+const CREDIT_AR='هذه الأداة صممت لقسم الأمن SOS — تصميم Ahmed Abu Jami';
+const CREDIT_EN='Safety and Security Officer - SOS Children\'s Villages';
+
+let S,SH=null,me=0,RD=null,TI=null,GEN={},AC,WL,stream=null,scanning=false;
+const saveShift=()=>kvSet('shift',SH);
+const ptOf=id=>S.points.find(p=>p.id===id)||{id,ar:id,en:id};
+const reqPts=()=>S.points.filter(p=>p.inRound||p.id===SH.point);
+const hdr=()=>'<header class="hd"><img src="logo.png" class="lg" onerror="this.onerror=null;this.src=\'icon.svg\'"><div><b class="glow">SOS GUARD</b><small>قسم الأمن · SOS Children\'s Villages</small></div><button class="ic" onclick="askSup()">⚙️</button></header>';
+const foot='<footer class="ft">'+CREDIT_AR+'<br><b>'+CREDIT_EN+'</b></footer>';
+
+/* ====== ماتريكس ====== */
+(function(){const c=$('#mx'),x=c.getContext('2d');let cols,drops,fs=16,last=0;
+ const chars='01ABCDEFGHJKLMNPQRSTUVWXYZ23456789ابتثجحخدذرزسشصضطظعغفقكلمنهوي<>/|=+*'.split('');
+ function size(){c.width=innerWidth;c.height=innerHeight;cols=Math.ceil(c.width/fs);drops=Array.from({length:cols},()=>Math.random()*c.height/fs)}
+ size();addEventListener('resize',size);
+ function loop(t){requestAnimationFrame(loop);
+  if(!S||!S.matrix){c.style.display='none';return}c.style.display='block';
+  if(document.hidden||t-last<65)return;last=t;
+  x.fillStyle='rgba(2,6,15,.13)';x.fillRect(0,0,c.width,c.height);x.font=fs+'px monospace';
+  for(let i=0;i<cols;i++){const ch=chars[Math.random()*chars.length|0],py=drops[i]*fs;
+   x.fillStyle=Math.random()>.975?'#d4fff2':(i%4===0?'#12c9e6':'#2dffb2');x.fillText(ch,i*fs,py);
+   if(py>c.height&&Math.random()>.975)drops[i]=0;drops[i]++}}
+ requestAnimationFrame(loop)})();
+
+/* ====== صوت / تنبيه / شاشة ====== */
+document.addEventListener('click',()=>{try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();AC.resume&&AC.resume()}catch(e){}});
+function beep(){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();[0,.3,.6].forEach(t=>{const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=880;o.connect(g);g.connect(AC.destination);g.gain.setValueAtTime(.25,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+t+.22);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+.25)})}catch(e){}}
+function notify(t,b){try{if(window.Notification&&Notification.permission==='granted')navigator.serviceWorker.ready.then(r=>r.showNotification(t,{body:b,icon:'icon.svg',vibrate:[300,150,300],tag:'round'}))}catch(e){}}
+function alarm(){if(S.sound)beep();if(navigator.vibrate)navigator.vibrate([400,150,400,150,400]);notify('⏰ حان موعد جولة الفحص','افتح التطبيق وابدأ الجولة');toast('⏰ حان موعد جولة الفحص')}
+async function wake(){try{if(S.wake&&SH&&navigator.wakeLock&&!WL){WL=await navigator.wakeLock.request('screen');WL.addEventListener('release',()=>WL=null)}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){wake();tick()}});
+const getGps=()=>new Promise(r=>{if(!navigator.geolocation)return r(null);navigator.geolocation.getCurrentPosition(p=>r({lat:+p.coords.latitude.toFixed(6),lon:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy)}),()=>r(null),{enableHighAccuracy:true,timeout:7000,maximumAge:120000})});
+function photo(cb){const i=document.createElement('input');i.type='file';i.accept='image/*';i.capture='environment';i.onchange=()=>{const f=i.files[0];if(!f)return;const im=new Image();im.onload=()=>{const k=Math.min(1,900/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.6));URL.revokeObjectURL(im.src)};im.src=URL.createObjectURL(f)};i.click()}
+
+/* ====== الدخول وبدء المناوبة ====== */
+function curShift(){const d=new Date(),m=d.getHours()*60+d.getMinutes(),f=s=>{const a=s.split(':');return +a[0]*60+ +a[1]};const a=f(S.shifts.M.start),b=f(S.shifts.M.end);return(a<b?(m>=a&&m<b):(m>=a||m<b))?'M':'E'}
+function vLogin(){clearInterval(TI);
+ const gs=S.guards.map((g,i)=>g.name?'<option value="'+i+'" '+(i==S.last?'selected':'')+'>'+esc(g.name)+'</option>':'').join('');
+ render(hdr()+'<section class="card"><h2>🔐 تسجيل الدخول</h2><label>اسم الحارس</label><select id="g">'+gs+'</select><label>الرقم السري (PIN)</label><input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="••••"><button class="btn pri big" onclick="doLogin()">دخول</button></section><button class="btn gh" onclick="vHistory()">📂 سجل التقارير</button>'+foot)}
+async function doLogin(){const i=+$('#g').value;if($('#pin').value!==S.guards[i].pin)return toast('❌ رقم سري خاطئ');S.last=i;await kvSet('settings',S);vStart(i)}
+function vStart(i){me=i;
+ render(hdr()+'<section class="card"><h2>مرحباً '+esc(S.guards[i].name)+' 👋</h2><label>نقطة الحراسة</label>'+chips('cp',S.points.map(p=>({v:p.id,t:'📍 '+esc(p.ar)})),S.points[0].id)+'<label>المناوبة</label>'+chips('cs',['M','E'].map(k=>({v:k,t:S.shifts[k].ar+' ('+S.shifts[k].start+'–'+S.shifts[k].end+')'})),curShift())+'<p class="mut">جولة الفحص كل '+S.interval+' دقيقة، وسيتم تذكيرك داخل التطبيق.</p><button class="btn pri big" onclick="startShift()">▶️ بدء المناوبة</button><button class="btn gh" onclick="vLogin()">رجوع</button></section>'+foot)}
+async function startShift(){
+ SH={id:Date.now(),guardIdx:me,guard:S.guards[me].name,point:val('cp'),shiftKey:val('cs'),startTs:Date.now(),rounds:[],incidents:[],alerted:0,gps:null};
+ await saveShift();
+ try{if(window.Notification&&Notification.permission==='default')Notification.requestPermission()}catch(e){}
+ wake();vDash();getGps().then(g=>{if(SH){SH.gps=g;saveShift()}})}
+
+/* ====== الشاشة الرئيسية ====== */
+function roundBad(r){let n=0;ITEMS.forEach(it=>{if(r.items[it.k]&&!r.items[it.k].ok)n++});const p=POW.find(x=>x[0]===r.power);if(p&&!p[3])n++;return n}
+function vDash(){clearInterval(TI);
+ const pt=ptOf(SH.point),sh=S.shifts[SH.shiftKey];
+ const ev=SH.rounds.map((r,i)=>({ts:r.ts,h:'جولة #'+(i+1)+' '+(roundBad(r)?'⚠️ '+roundBad(r)+' خلل':'✅ سليمة')+(Object.values(r.qr||{}).some(q=>q.mode!=='qr')?' · يدوي':' · QR')})).concat(SH.incidents.map(i=>({ts:i.ts,h:(i.level==='r'?'🔴 ':'🟡 ')+esc(TYPES.find(t=>t[0]===i.type)[1])}))).sort((a,b)=>b.ts-a.ts);
+ const red=SH.incidents.filter(i=>i.level==='r').length,yel=SH.incidents.length-red;
+ render(hdr()+'<div class="tags"><span>👤 '+esc(SH.guard)+'</span><span>📍 '+esc(pt.ar)+'</span><span>🕒 '+sh.ar+'</span><span class="mono glow" id="clk"></span></div>'+
+ '<div class="grid2" style="margin-top:12px"><section class="card wide"><small class="sub">NEXT ROUND · الجولة القادمة</small><div class="num mono glow" id="cd">--:--:--</div><div class="bar"><i id="pb"></i></div><small id="cdl"></small></section>'+
+ '<section class="card"><small class="sub">ROUNDS · الجولات</small><div class="num mono glow"><b id="rc">0</b><span id="re">/0</span></div></section>'+
+ '<section class="card"><small class="sub">EVENTS · الأحداث</small><div class="num">🟡'+yel+' 🔴'+red+'</div></section></div>'+
+ '<button class="btn pri big" onclick="vRound()">🔄 بدء جولة فحص</button><button class="btn bad big" onclick="vIncident()">🚨 تسجيل حدث / حادث</button>'+
+ '<section class="card"><h3>📋 سجل المناوبة</h3>'+(ev.map(e=>'<div class="ev"><b class="mono">'+fmtT(e.ts)+'</b><span>'+e.h+'</span></div>').join('')||'<small>لا توجد أحداث بعد</small>')+'</section>'+
+ '<button class="btn gh" onclick="vEnd()">🏁 إنهاء المناوبة وإنشاء التقرير</button><button class="btn gh" onclick="vHistory()">📂 سجل التقارير</button>'+foot);
+ tick();TI=setInterval(tick,1000)}
+function tick(){if(!SH||!$('#cd'))return;
+ const now=Date.now(),iv=S.interval*60000,last=SH.rounds.length?SH.rounds[SH.rounds.length-1].ts:SH.startTs,due=last+iv,rem=due-now;
+ $('#cd').textContent=(rem<0?'+':'')+hms(Math.abs(rem));$('#cd').className='num mono '+(rem<0?'redn':'glow');
+ $('#pb').style.width=Math.min(100,Math.max(0,(now-last)/iv*100))+'%';
+ $('#cdl').textContent=rem<0?'⚠️ الجولة متأخرة — ابدأ الجولة الآن':'موعد الجولة القادمة الساعة '+fmtT(due);
+ $('#clk').textContent=fmtT(now);$('#rc').textContent=SH.rounds.length;$('#re').textContent='/'+Math.floor((now-SH.startTs)/iv);
+ if(rem<=0&&now-SH.alerted>600000){SH.alerted=now;saveShift();alarm()}}
+
+/* ====== جولة الفحص ====== */
+function itemHTML(it){const d=RD.items[it.k]||{};
+ return '<div class="card it" id="it_'+it.k+'"><div class="ih"><b>'+it.ar+'</b><small class="sub">'+it.en+'</small></div><p>'+it.q+'</p><div class="seg"><button class="'+(d.ok===true?'okb':'')+'" onclick="setItem(\''+it.k+'\',true)">✅ '+it.ok+'</button><button class="'+(d.ok===false?'badb':'')+'" onclick="setItem(\''+it.k+'\',false)">⚠️ '+it.bad+'</button></div>'+
+ (d.ok===false?'<textarea placeholder="اكتب الخلل باختصار (إلزامي)" oninput="RD.items[\''+it.k+'\'].note=this.value">'+esc(d.note||'')+'</textarea><button class="btn gh sm" onclick="itemPhoto(\''+it.k+'\')">'+(d.photo?'✔ تم إرفاق صورة — تغيير':'📷 إرفاق صورة (اختياري)')+'</button>':'')+'</div>'}
+function setItem(k,ok){RD.items[k]=Object.assign({},RD.items[k],{ok});$('#it_'+k).outerHTML=itemHTML(ITEMS.find(i=>i.k===k))}
+function itemPhoto(k){photo(d=>{RD.items[k].photo=d;$('#it_'+k).outerHTML=itemHTML(ITEMS.find(i=>i.k===k))})}
+function drawQR(){$('#qrs').innerHTML=reqPts().map(p=>{const q=RD.qr[p.id];return '<div class="qrow"><span>📍 '+esc(p.ar)+'</span>'+(q?'<b class="'+(q.mode==='qr'?'glow':'wn')+'">'+(q.mode==='qr'?'✔ QR':'✔ يدوي ⚠')+'</b>':'<button class="btn pri sm" onclick="scan(\''+p.id+'\')">📷 مسح QR</button>')+'</div>'}).join('')}
+function stp(k,d){RD[k]=Math.max(0,RD[k]+d);$('#v_'+k).textContent=RD[k]}
+function vRound(){clearInterval(TI);RD={qr:{},items:{},battery:'',visitors:0,vehicles:0};
+ render(hdr()+'<h2 class="ttl">🔄 جولة فحص</h2><section class="card"><h3>1) إثبات التواجد بالنقاط (QR)</h3><div id="qrs"></div></section><h3 class="sec">2) قائمة الفحص</h3>'+ITEMS.map(itemHTML).join('')+
+ '<section class="card"><h3>3) الكهرباء والاتصال</h3><label>مصدر الطاقة</label>'+chips('pw',POW.map(p=>({v:p[0],t:p[1]})),'')+'<label>نسبة شحن جهاز الاتصال %</label><input id="bt" type="number" inputmode="numeric" min="0" max="100" placeholder="مثال: 85" oninput="RD.battery=this.value"></section>'+
+ '<section class="card"><h3>4) منذ آخر جولة</h3><div class="grid2"><div><small>عدد الزوار</small><div class="step"><button onclick="stp(\'visitors\',-1)">−</button><b id="v_visitors">0</b><button onclick="stp(\'visitors\',1)">+</button></div></div><div><small>عدد المركبات</small><div class="step"><button onclick="stp(\'vehicles\',-1)">−</button><b id="v_vehicles">0</b><button onclick="stp(\'vehicles\',1)">+</button></div></div></div></section>'+
+ '<button class="btn pri big" id="sv" onclick="saveRound()">💾 حفظ الجولة</button><button class="btn gh" onclick="vDash()">إلغاء</button>'+foot);drawQR()}
+async function saveRound(){
+ if(reqPts().some(p=>!RD.qr[p.id]))return toast('امسح QR لكل النقاط أولاً');
+ for(const it of ITEMS){const d=RD.items[it.k];if(!d||d.ok===undefined)return toast('أجب على: '+it.ar);if(d.ok===false&&!(d.note||'').trim())return toast('اكتب وصف الخلل: '+it.ar)}
+ const pw=val('pw');if(!pw)return toast('اختر مصدر الطاقة');
+ const b=+RD.battery;if(RD.battery===''||isNaN(b)||b<0||b>100)return toast('أدخل نسبة شحن صحيحة (0-100)');
+ $('#sv').disabled=true;$('#sv').textContent='⏳ جاري تحديد الموقع…';
+ const gps=await getGps(),now=Date.now(),last=SH.rounds.length?SH.rounds[SH.rounds.length-1].ts:SH.startTs,due=last+S.interval*60000;
+ SH.rounds.push({ts:now,due,late:Math.max(0,now-due),gps,qr:RD.qr,items:RD.items,power:pw,battery:b,visitors:RD.visitors,vehicles:RD.vehicles});
+ SH.alerted=0;await saveShift();toast('✅ تم حفظ الجولة');vDash()}
+
+/* ====== مسح QR ====== */
+function stopScan(){scanning=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}closeModal()}
+function manualQR(pid){stopScan();RD.qr[pid]={mode:'manual',ts:Date.now()};drawQR()}
+async function scan(pid){const p=ptOf(pid),has='BarcodeDetector' in window;
+ modal('<div class="scan"><h3>📷 مسح QR — '+esc(p.ar)+'</h3><video id="vid" playsinline muted></video><p id="sm" class="mut">وجّه الكاميرا نحو رمز QR المثبت عند هذه النقطة</p><div class="row2"><button class="btn gh" onclick="stopScan()">إلغاء</button>'+((S.allowManual||!has)?'<button class="btn warn" onclick="manualQR(\''+pid+'\')">تأكيد يدوي</button>':'')+'</div></div>');
+ if(!has){$('#sm').textContent='هذا الجهاز لا يدعم قراءة QR داخل التطبيق، استخدم التأكيد اليدوي';return}
+ try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});const v=$('#vid');v.srcObject=stream;await v.play();
+  const det=new BarcodeDetector({formats:['qr_code']});scanning=true;
+  const loop=async()=>{if(!scanning)return;try{const r=await det.detect(v);for(const b of r){if(b.rawValue==='SOSGUARD|'+pid){RD.qr[pid]={mode:'qr',ts:Date.now()};if(navigator.vibrate)navigator.vibrate(200);stopScan();drawQR();toast('✅ تم التحقق من '+p.ar);return}else if(b.rawValue.indexOf('SOSGUARD|')===0){$('#sm').textContent='❌ هذا QR لنقطة أخرى'}}}catch(e){}setTimeout(loop,250)};loop()
+ }catch(e){const m=$('#sm');if(m)m.textContent='تعذر فتح الكاميرا. اسمح بالصلاحية أو استخدم التأكيد اليدوي'}}
+
+/* ====== الحوادث ====== */
+function vIncident(){clearInterval(TI);RD={photo:null};
+ render(hdr()+'<h2 class="ttl">🚨 تسجيل حدث</h2><section class="card"><label>مستوى الحدث</label>'+chips('lv',[{v:'y',t:'🟡 ملاحظة / تنبيه'},{v:'r',t:'🔴 حادث أمني / طارئ'}],'')+'<label>نوع الحدث</label>'+chips('ty',TYPES.map(t=>({v:t[0],t:t[1]})),'')+'<label>متى حصل؟</label>'+chips('wh',[{v:'0',t:'الآن'},{v:'5',t:'قبل 5 د'},{v:'10',t:'قبل 10 د'},{v:'30',t:'قبل 30 د'},{v:'60',t:'قبل ساعة'}],'0')+
+ '<label>وصف ما حدث (إلزامي)</label><textarea id="ds"></textarea><label>الإجراء الذي اتخذته (إلزامي)</label><textarea id="ac"></textarea><button class="btn gh" id="ph" onclick="photo(d=>{RD.photo=d;$(\'#ph\').textContent=\'✔ تم إرفاق صورة — تغيير\'})">📷 إرفاق صورة (اختياري)</button><small class="wn">⚠️ لا تصوّر الأطفال. صوّر الحدث أو العطل فقط.</small></section>'+
+ '<button class="btn bad big" onclick="saveInc()">💾 حفظ الحدث</button><button class="btn gh" onclick="vDash()">إلغاء</button>'+foot)}
+async function saveInc(){const lv=val('lv'),ty=val('ty'),ds=$('#ds').value.trim(),ac=$('#ac').value.trim();
+ if(!lv)return toast('اختر مستوى الحدث');if(!ty)return toast('اختر نوع الحدث');if(!ds)return toast('اكتب وصف ما حدث');if(!ac)return toast('اكتب الإجراء المتخذ');
+ const inc={ts:Date.now()-(+val('wh'))*60000,rec:Date.now(),level:lv,type:ty,desc:ds,action:ac,photo:RD.photo};
+ SH.incidents.push(inc);await saveShift();vDash();if(lv==='r')alertSheet(inc)}
+function alertTxt(i){const t=TYPES.find(x=>x[0]===i.type);return '🚨 *تنبيه فوري / URGENT ALERT*\n👤 '+SH.guard+'\n📍 '+ptOf(SH.point).ar+' / '+ptOf(SH.point).en+'\n🕒 '+fmtD(i.ts)+' '+fmtT(i.ts)+'\n⚠️ '+t[1]+' / '+t[2]+'\n📝 '+i.desc+'\n✅ '+i.action}
+function alertSheet(i){window._ai=i;modal('<h3 class="redn">🔴 تم تسجيل حادث</h3><p>أرسل تنبيهاً فورياً للمشرف الآن؟</p><button class="btn bad" onclick="waAlert()">💬 إرسال لرقم المشرف</button><button class="btn gh" onclick="shAlert()">👥 إرسال لجروب</button><button class="btn gh" onclick="closeModal()">لاحقاً</button>')}
+function waAlert(){window.open('https://wa.me/'+S.phone+'?text='+encodeURIComponent(alertTxt(window._ai)),'_blank')}
+function shAlert(){if(navigator.share)navigator.share({text:alertTxt(window._ai)}).catch(()=>{});else toast('المشاركة غير مدعومة')}
+
+/* ====== إنهاء المناوبة ====== */
+function vEnd(){clearInterval(TI);
+ const now=Date.now(),exp=Math.floor((now-SH.startTs)/(S.interval*60000)),done=SH.rounds.length;
+ const others=S.guards.map((g,i)=>({g,i})).filter(o=>o.g.name&&o.i!==SH.guardIdx);
+ render(hdr()+'<h2 class="ttl">🏁 إنهاء المناوبة</h2><section class="card"><div class="tags"><span>⏱ '+durTxt(now-SH.startTs)+'</span><span>🔄 '+done+' / '+exp+' جولة</span><span>🚨 '+SH.incidents.length+' حدث</span></div></section>'+
+ (done<exp?'<section class="card"><b class="wn">⚠️ الجولات المنفذة '+done+' من '+exp+' مطلوبة</b><textarea id="miss" placeholder="اذكر سبب نقص الجولات (إلزامي)"></textarea></section>':'')+
+ '<section class="card"><h3>🤝 التسليم والاستلام</h3><label>هل تم تسليم العهدة (مفاتيح، أجهزة، سجلات)؟</label>'+chips('ho',[{v:'1',t:'✅ نعم'},{v:'0',t:'❌ لا'}],'')+'<label>اسم الحارس المستلم</label><select id="rc2" onchange="$(\'#rco\').style.display=this.value===\'__o\'?\'block\':\'none\'"><option value="">— اختر —</option>'+others.map(o=>'<option>'+esc(o.g.name)+'</option>').join('')+'<option value="__o">آخر (اكتب الاسم)</option></select><input id="rco" style="display:none;margin-top:8px" placeholder="اسم المستلم"><label>ملاحظات ختامية / سبب عدم التسليم</label><textarea id="fn"></textarea></section>'+
+ '<button class="btn pri big" onclick="finishShift()">✅ إنهاء وإنشاء التقرير</button><button class="btn gh" onclick="vDash()">رجوع</button>'+foot)}
+function stats(r){const red=r.incidents.filter(i=>i.level==='r').length,yel=r.incidents.length-red;let qrOk=0,qrTot=0,vis=0,veh=0,bats=[],issues=[];
+ r.rounds.forEach((x,n)=>{Object.values(x.qr||{}).forEach(q=>{qrTot++;if(q.mode==='qr')qrOk++});vis+=x.visitors||0;veh+=x.vehicles||0;bats.push(+x.battery);
+  ITEMS.forEach(it=>{const d=x.items[it.k];if(d&&!d.ok)issues.push({n:n+1,ar:it.ar,en:it.en,note:d.note,photo:d.photo})});
+  const pw=POW.find(p=>p[0]===x.power);if(pw&&!pw[3])issues.push({n:n+1,ar:'الكهرباء',en:'Power',note:'لا توجد كهرباء / No power'})});
+ return{red,yel,qrOk,qrTot,vis,veh,minBat:bats.length?Math.min.apply(null,bats):null,issues}}
+async function finishShift(){
+ const now=Date.now(),exp=Math.floor((now-SH.startTs)/(S.interval*60000));
+ const miss=$('#miss')?$('#miss').value.trim():'';if(SH.rounds.length<exp&&!miss)return toast('اذكر سبب نقص الجولات');
+ const ho=val('ho');if(!ho)return toast('حدد هل تم التسليم');
+ let rc=$('#rc2').value;if(rc==='__o')rc=$('#rco').value.trim();const fn=$('#fn').value.trim();
+ if(ho==='1'&&!rc)return toast('اختر اسم الحارس المستلم');if(ho==='0'&&!fn)return toast('اكتب سبب عدم التسليم');
+ if(!confirm('بعد الإنهاء لا يمكن تعديل التقرير. متأكد؟'))return;
+ const pt=ptOf(SH.point),sh=S.shifts[SH.shiftKey];
+ const rep=Object.assign({},SH,{endTs:now,expected:exp,iv:S.interval,pAr:pt.ar,pEn:pt.en,sAr:sh.ar,sEn:sh.en,sTime:sh.start+'–'+sh.end,ho:ho==='1',receiver:rc,finalNote:fn,missNote:miss,locked:true,synced:false});
+ const s=stats(rep);rep.status=s.red?'r':(s.yel||s.issues.length)?'y':'g';
+ const base='GR-'+fmtD(SH.startTs).replace(/-/g,'')+'-G'+pad(SH.guardIdx+1)+SH.shiftKey,all=await repAll();let no=base,n=1;while(all.some(r=>r.id===no))no=base+'-'+(++n);
+ rep.no=no;rep.id=no;await repPut(rep);SH=null;await kvDel('shift');if(WL){WL.release();WL=null}
+ trySync();vReport(no)}
+
+/* ====== نص التقرير ====== */
+function textRep(r,compact){const st=ST[r.status],s=stats(r),L=[];
+ L.push('🛡️ *SOS Children\'s Villages*','*تقرير مناوبة حارس / Guard Shift Report*','━━━━━━━━━━━━━━',
+ '🔖 *رقم التقرير / No:* '+r.no,'👤 *الحارس / Guard:* '+r.guard,'📍 *الموقع / Post:* '+r.pAr+' / '+r.pEn,
+ '🕒 *المناوبة / Shift:* '+r.sAr+' / '+r.sEn+' | '+fmtD(r.startTs)+' '+fmtT(r.startTs)+'→'+fmtT(r.endTs),
+ '📊 *الحالة / Status:* '+st.e+' '+st.ar+' / '+st.en,
+ '🔄 *الجولات / Rounds:* '+r.rounds.length+'/'+r.expected+' (QR '+s.qrOk+'/'+s.qrTot+')',
+ '🚨 *الأحداث / Events:* 🟡'+s.yel+' 🔴'+s.red+' | ⚠️ *أعطال الفحص / Check issues:* '+s.issues.length);
+ if(!compact){L.push('👥 *زوار/مركبات / Visitors/Vehicles:* '+s.vis+'/'+s.veh);if(s.minBat!=null)L.push('🔋 *أدنى شحن / Min battery:* '+s.minBat+'%')}
+ const iss=compact?s.issues.slice(0,4):s.issues;if(iss.length){L.push('','🔧 *أعطال الفحص / Check issues:*');iss.forEach(i=>L.push('• #'+i.n+' '+i.ar+' / '+i.en+': '+i.note))}
+ const inc=compact?r.incidents.slice(0,4):r.incidents;if(inc.length){L.push('','📝 *الأحداث / Incidents:*');inc.forEach(i=>{const t=TYPES.find(x=>x[0]===i.type);L.push('• ['+fmtT(i.ts)+'] '+(i.level==='r'?'🔴':'🟡')+' '+t[1]+' / '+t[2]+' — '+i.desc+' ← '+i.action)})}else L.push('','📝 لا أحداث / No incidents');
+ if(r.missNote)L.push('','⏱ *سبب نقص الجولات / Missed rounds:* '+r.missNote);
+ L.push('','🤝 *التسليم / Handover:* '+(r.ho?'نعم / Yes → '+r.receiver:'لا / No')+(r.finalNote?' — '+r.finalNote:''),'━━━━━━━━━━━━━━','_'+CREDIT_AR+'_','_'+CREDIT_EN+'_');
+ return L.join('\n')}
+const syncPayload=r=>{const s=stats(r);return{no:r.no,guard:r.guard,post:r.pAr,shift:r.sAr,date:fmtD(r.startTs),start:fmtT(r.startTs),end:fmtT(r.endTs),status:ST[r.status].en,rounds:r.rounds.length,expected:r.expected,red:s.red,yellow:s.yel,issues:s.issues.length,handover:r.ho?'YES → '+r.receiver:'NO',email:S.email,text:textRep(r,false)}};
+async function trySync(){if(!S.syncUrl||!navigator.onLine)return;const all=await repAll();for(const r of all.filter(x=>!x.synced)){try{await fetch(S.syncUrl,{method:'POST',mode:'no-cors',body:JSON.stringify(syncPayload(r))});r.synced=true;await repPut(r)}catch(e){break}}}
+
+/* ====== تقرير الـ PDF (عربي + إنجليزي) ====== */
+const RCSS=".r-page{width:794px;height:1123px;position:relative;background:#fff;color:#0b1b2b;font-family:'Noto Naskh Arabic','Noto Sans Arabic',Tahoma,Arial,sans-serif;font-size:13px;line-height:1.5;overflow:hidden;box-sizing:border-box;direction:rtl}.r-body{padding:26px 30px 0}.r-blk{margin-bottom:10px}.r-head{display:flex;align-items:center;gap:14px;border-bottom:3px solid #12c9e6;padding-bottom:10px}.r-logo{height:58px;width:58px;object-fit:contain}.r-tt{flex:1}.r-t1{font-size:21px;font-weight:700;color:#06122a}.r-t2{font-size:14px;color:#0a7f8f}.r-org{font-size:11px;color:#4a6272}.r-no{text-align:left;direction:ltr;font-family:monospace;font-size:12px}.r-badge{display:inline-block;color:#fff;border-radius:6px;padding:3px 10px;margin-top:5px;font-family:Tahoma,Arial;font-size:11px;direction:rtl}.r-grid{display:flex;flex-wrap:wrap;gap:6px}.r-c{width:calc(33.3% - 4px);border:1px solid #cfe3ea;border-radius:8px;padding:5px 8px;background:#f5fafc;box-sizing:border-box}.r-l{font-size:10.5px;color:#4a6272}.r-v{font-weight:700;font-size:13px}.r-h{font-weight:700;color:#06122a;border-right:4px solid #2dffb2;padding-right:8px;margin-bottom:6px;font-size:14px}.r-h span{color:#0a7f8f;font-weight:400;font-size:12px}.r-st{display:flex;gap:6px}.r-s{flex:1;text-align:center;border:1px solid #cfe3ea;border-radius:8px;padding:6px 2px;background:#f5fafc}.r-s b{display:block;font-size:18px;color:#06122a}.r-s small{font-size:10px;color:#4a6272}.r-tb{width:100%;border-collapse:collapse;font-size:11.5px}.r-tb th{background:#06122a;color:#2dffb2;padding:4px 2px;border:1px solid #06122a;font-weight:600;font-size:10.5px}.r-tb td{border:1px solid #cfe3ea;padding:4px 2px;text-align:center}.r-g{color:#16a34a}.r-b{color:#d6213a}.r-w{color:#d99a00}.r-card{border:1px solid #cfe3ea;border-right:5px solid #d99a00;border-radius:8px;padding:7px 10px;background:#fcfdfe}.r-card.red{border-right-color:#d6213a}.r-ph{height:190px;margin-top:6px;border-radius:6px;border:1px solid #cfe3ea}.r-it{padding:3px 0;border-bottom:1px dashed #cfe3ea}.r-foot{position:absolute;left:30px;right:30px;bottom:14px;border-top:1px solid #12c9e6;padding-top:6px;font-size:10px;color:#4a6272;display:flex;justify-content:space-between;gap:10px;align-items:center}.r-foot div{text-align:center;flex:1}.r-foot span{direction:ltr;font-family:monospace}";
+let LOGO=null;
+async function toData(u){const b=await(await fetch(u)).blob();return new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(f.result);f.onerror=rej;f.readAsDataURL(b)})}
+async function logoData(){if(LOGO)return LOGO;try{const r=await fetch('logo.png');if(!r.ok)throw 0;const b=await r.blob();LOGO=await new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(f.result);f.onerror=rej;f.readAsDataURL(b)})}catch(e){LOGO=await toData('icon.svg')}return LOGO}
+async function blocksOf(r){const logo=await logoData(),st=ST[r.status],s=stats(r),B=[];
+ const H=(a,e)=>'<div class="r-h">'+a+' <span>'+e+'</span></div>';
+ const cell=(a,e,v)=>'<div class="r-c"><div class="r-l">'+a+' · '+e+'</div><div class="r-v">'+v+'</div></div>';
+ B.push('<div class="r-head"><img class="r-logo" src="'+logo+'"/><div class="r-tt"><div class="r-t1">تقرير مناوبة حارس أمن</div><div class="r-t2">Security Guard Shift Report</div><div class="r-org">SOS Children\'s Villages · قسم الأمن / Security Department</div></div><div class="r-no"><div>'+esc(r.no)+'</div><div class="r-badge" style="background:'+st.c+'">'+st.ar+' · '+st.en+'</div></div></div>');
+ B.push('<div class="r-grid">'+cell('الحارس','Guard',esc(r.guard))+cell('الموقع','Post',esc(r.pAr)+' · '+esc(r.pEn))+cell('المناوبة','Shift',esc(r.sAr)+' · '+esc(r.sEn))+cell('التاريخ','Date',fmtD(r.startTs))+cell('البداية','Start',fmtT(r.startTs))+cell('النهاية','End',fmtT(r.endTs))+cell('المدة','Duration',durTxt(r.endTs-r.startTs))+cell('دورية الفحص','Round interval',r.iv+' min')+cell('الموقع GPS','GPS',r.gps?r.gps.lat+', '+r.gps.lon:'—')+'</div>');
+ const t=(n,a,e)=>'<div class="r-s"><b>'+n+'</b><small>'+a+'<br>'+e+'</small></div>';
+ B.push(H('ملخص','Summary')+'<div class="r-st">'+t(r.rounds.length+'/'+r.expected,'الجولات','Rounds')+t('🔴'+s.red+' 🟡'+s.yel,'الأحداث','Events')+t(s.qrOk+'/'+s.qrTot,'تحقق QR','QR verified')+t(s.vis+' / '+s.veh,'زوار / مركبات','Visitors / Veh.')+t(s.minBat!=null?s.minBat+'%':'—','أدنى شحن','Min battery')+'</div>');
+ const mark=ok=>ok?'<b class="r-g">✔</b>':'<b class="r-b">✖</b>';
+ if(!r.rounds.length)B.push(H('الجولات','Rounds')+'<div class="r-b">لم تسجل أي جولة / No rounds recorded</div>');
+ else{const rows=r.rounds.map((x,n)=>{const late=x.late>600000?'<br><small class="r-b">تأخر '+Math.round(x.late/60000)+'د</small>':'';const qs=Object.values(x.qr||{});const qc=qs.length&&qs.every(q=>q.mode==='qr')?'<b class="r-g">QR ✔</b>':'<b class="r-w">يدوي</b>';const pw=POW.find(p=>p[0]===x.power)||[];
+  return '<tr><td>'+(n+1)+'</td><td>'+fmtT(x.ts)+late+'</td><td>'+qc+'</td>'+ITEMS.map(it=>'<td>'+mark(x.items[it.k]&&x.items[it.k].ok)+'</td>').join('')+'<td>'+(pw[1]||'-')+'<br><small>'+(pw[2]||'')+'</small></td><td>'+x.battery+'%</td><td>'+x.visitors+'/'+x.vehicles+'</td></tr>'});
+  const th='<tr><th>#</th><th>الوقت<br>Time</th><th>QR</th><th>البوابات<br>Gates</th><th>الإضاءة<br>Light</th><th>السلامة<br>Safety</th><th>السجل<br>Log</th><th>الطاقة<br>Power</th><th>البطارية<br>Batt.</th><th>زوار/مركبات<br>Vis/Veh</th></tr>';
+  for(let i=0;i<rows.length;i+=8)B.push((i===0?H('الجولات الدورية','Periodic Rounds'):'')+'<table class="r-tb">'+th+rows.slice(i,i+8).join('')+'</table>')}
+ if(s.issues.length){B.push(H('أعطال ظهرت بالفحص','Checklist Issues'));s.issues.forEach(i=>B.push('<div class="r-it"><b>#'+i.n+' · '+i.ar+' / '+i.en+':</b> '+esc(i.note)+(i.photo?'<br><img class="r-ph" style="height:120px" src="'+i.photo+'"/>':'')+'</div>'))}
+ B.push(H('الأحداث والملاحظات','Incidents & Observations'));
+ if(!r.incidents.length)B.push('<div class="r-g">لا توجد أحداث أو ملاحظات خلال المناوبة / No incidents reported</div>');
+ r.incidents.slice().sort((a,b)=>a.ts-b.ts).forEach(i=>{const ty=TYPES.find(x=>x[0]===i.type);B.push('<div class="r-card '+(i.level==='r'?'red':'')+'"><b>'+(i.level==='r'?'🔴 حادث أمني / Security Incident':'🟡 ملاحظة / Observation')+'</b> · '+fmtT(i.ts)+'<br><b>'+ty[1]+' / '+ty[2]+'</b><br>الوصف / Description: '+esc(i.desc)+'<br>الإجراء / Action: '+esc(i.action)+(i.photo?'<br><img class="r-ph" src="'+i.photo+'"/>':'')+'</div>')});
+ B.push(H('التسليم والاستلام','Handover')+'<div>تسليم العهدة / Handed over: <b>'+(r.ho?'نعم / Yes':'لا / No')+'</b>'+(r.receiver?' → '+esc(r.receiver):'')+'</div>'+(r.missNote?'<div>سبب نقص الجولات / Missed rounds: '+esc(r.missNote)+'</div>':'')+(r.finalNote?'<div>ملاحظات / Notes: '+esc(r.finalNote)+'</div>':'')+'<div style="margin-top:6px;font-size:10px;color:#4a6272">الأوقات مسجلة تلقائياً من النظام، والنصوص الحرة تظهر كما أدخلها الحارس. التقرير مقفل بعد الإنهاء. / Timestamps are system-generated; free text is shown as entered. Report is locked after submission.</div>');
+ return B}
+async function genPages(r){const bl=await blocksOf(r);
+ const host=document.createElement('div');host.style.cssText='position:absolute;left:-99999px;top:0';host.innerHTML='<style>'+RCSS+'</style><div class="r-page"><div class="r-body" id="mb"></div></div>';document.body.appendChild(host);
+ const mb=host.querySelector('#mb'),hs=[];
+ for(const b of bl){const d=document.createElement('div');d.className='r-blk';d.innerHTML=b;mb.appendChild(d);await new Promise(r=>setTimeout(r,15));hs.push(d.offsetHeight+10);mb.removeChild(d)}
+ host.remove();const MAXH=1123-26-90,pages=[[]];let cur=0;
+ bl.forEach((b,i)=>{if(cur+hs[i]>MAXH&&pages[pages.length-1].length){pages.push([]);cur=0}pages[pages.length-1].push(b);cur+=hs[i]});
+ const out=[],N=pages.length;
+ for(let p=0;p<N;p++){
+  const html='<div class="r-page"><style>'+RCSS+'</style><div class="r-body">'+pages[p].map(b=>'<div class="r-blk">'+b+'</div>').join('')+'</div><div class="r-foot"><span>'+esc(r.no)+'</span><div>'+CREDIT_AR+'<br>'+CREDIT_EN+'</div><span>'+(p+1)+' / '+N+'</span></div></div>';
+  const el=document.createElement('div');el.innerHTML=html;
+  const xml=new XMLSerializer().serializeToString(el.firstElementChild);
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="1588" height="2246" viewBox="0 0 794 1123"><foreignObject x="0" y="0" width="794" height="1123">'+xml+'</foreignObject></svg>';
+  const img=new Image();img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  await new Promise((res,rej)=>{img.onload=res;img.onerror=rej});
+  const cv=document.createElement('canvas');cv.width=1588;cv.height=2246;const cx=cv.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,1588,2246);cx.drawImage(img,0,0);
+  const url=cv.toDataURL('image/jpeg',.88),bin=atob(url.split(',')[1]),bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  out.push({url,bytes,w:1588,h:2246})}
+ return out}
+function buildPDF(pages){const enc=new TextEncoder(),ch=[];let pos=0;const offs=[];
+ const add=d=>{const b=typeof d==='string'?enc.encode(d):d;ch.push(b);pos+=b.length};
+ add('%PDF-1.4\n');const n=pages.length;
+ offs[1]=pos;add('1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n');
+ offs[2]=pos;add('2 0 obj\n<</Type/Pages/Kids['+pages.map((_,i)=>(3+i*3)+' 0 R').join(' ')+']/Count '+n+'>>\nendobj\n');
+ pages.forEach((p,i)=>{const po=3+i*3,co=po+1,io=po+2,c='q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
+  offs[po]=pos;add(po+' 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 595.28 841.89]/Resources<</XObject<</Im0 '+io+' 0 R>>>>/Contents '+co+' 0 R>>\nendobj\n');
+  offs[co]=pos;add(co+' 0 obj\n<</Length '+c.length+'>>\nstream\n'+c+'\nendstream\nendobj\n');
+  offs[io]=pos;add(io+' 0 obj\n<</Type/XObject/Subtype/Image/Width '+p.w+'/Height '+p.h+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+p.bytes.length+'>>\nstream\n');add(p.bytes);add('\nendstream\nendobj\n')});
+ const total=3+n*3,xp=pos;let x='xref\n0 '+total+'\n0000000000 65535 f \n';for(let i=1;i<total;i++)x+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+ add(x+'trailer\n<</Size '+total+'/Root 1 0 R>>\nstartxref\n'+xp+'\n%%EOF');return new Blob(ch,{type:'application/pdf'})}
+async function gen(id){if(GEN.id===id)return GEN;const r=await repGet(id),pages=await genPages(r);GEN={id,pages,pdf:buildPDF(pages)};return GEN}
+
+/* ====== شاشة التقرير والمشاركة ====== */
+async function vReport(id){clearInterval(TI);const r=await repGet(id);if(!r)return home();const st=ST[r.status];
+ render(hdr()+'<section class="card"><h2>📄 التقرير جاهز</h2><div class="mono glow">'+esc(r.no)+'</div><p>'+st.e+' '+st.ar+' — '+esc(r.guard)+' — '+esc(r.pAr)+' — '+fmtD(r.startTs)+'</p></section>'+
+ '<button class="btn pri big" onclick="sharePDF(\''+id+'\')">📤 مشاركة PDF (واتساب / جروب / إيميل)</button>'+
+ '<button class="btn gh" onclick="waSup(\''+id+'\')">💬 واتساب لرقم المشرف (ملخص)</button>'+
+ '<button class="btn gh" onclick="shareText(\''+id+'\')">👥 إرسال لجروب (ملخص)</button>'+
+ '<button class="btn gh" onclick="mail(\''+id+'\')">✉️ إيميل</button>'+
+ '<div class="row2"><button class="btn gh" onclick="dlPDF(\''+id+'\')">⬇️ تحميل PDF</button><button class="btn gh" onclick="copyTxt(\''+id+'\')">📋 نسخ النص</button></div>'+
+ '<section class="card"><h3>معاينة التقرير</h3><div id="prev" class="mut">⏳ جاري تجهيز التقرير…</div></section><button class="btn gh" onclick="home()">🏠 الرئيسية</button>'+foot);
+ try{const g=await gen(id);if($('#prev'))$('#prev').innerHTML=g.pages.map(p=>'<img class="pv" src="'+p.url+'">').join('')}catch(e){if($('#prev'))$('#prev').innerHTML='<span class="wn">تعذر إنشاء ملف PDF على هذا الجهاز. استخدم الإرسال كنص (واتساب / إيميل).</span>'}}
+async function sharePDF(id){const r=await repGet(id);try{toast('⏳ جاري التجهيز…');const g=await gen(id),f=new File([g.pdf],id+'.pdf',{type:'application/pdf'});
+ if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:'SOS Guard Report '+id,text:textRep(r,true)});else{dl(g.pdf,id+'.pdf');toast('تم تحميل الملف، أرفقه يدوياً في واتساب')}}catch(e){if(e.name!=='AbortError')toast('تعذر إنشاء/مشاركة الملف — استخدم الإرسال كنص')}}
+async function dlPDF(id){try{const g=await gen(id);dl(g.pdf,id+'.pdf')}catch(e){toast('تعذر إنشاء الملف')}}
+async function waSup(id){const r=await repGet(id);window.open('https://wa.me/'+S.phone+'?text='+encodeURIComponent(textRep(r,true)),'_blank')}
+async function shareText(id){const r=await repGet(id);if(navigator.share)navigator.share({text:textRep(r,true)}).catch(()=>{});else toast('المشاركة غير مدعومة')}
+async function mail(id){if(!S.email)return toast('أدخل بريد المشرف من الإعدادات');const r=await repGet(id);location.href='mailto:'+S.email+'?subject='+encodeURIComponent('[SHIFT REPORT] '+r.pEn+' - '+r.guard+' - '+fmtD(r.startTs))+'&body='+encodeURIComponent(textRep(r,false))}
+async function copyTxt(id){const r=await repGet(id);try{await navigator.clipboard.writeText(textRep(r,false));toast('✅ تم النسخ')}catch(e){toast('تعذر النسخ')}}
+function home(){SH?vDash():vLogin()}
+async function vHistory(){clearInterval(TI);const all=(await repAll()).sort((a,b)=>b.endTs-a.endTs);
+ render(hdr()+'<h2 class="ttl">📂 سجل التقارير</h2>'+(all.map(r=>'<section class="card hist" onclick="vReport(\''+r.id+'\')"><span style="font-size:24px">'+ST[r.status].e+'</span><div><b class="mono">'+esc(r.no)+'</b><br><small>'+esc(r.guard)+' · '+esc(r.pAr)+' · '+fmtD(r.startTs)+' '+(r.synced?'☁️':'')+'</small></div></section>').join('')||'<section class="card"><small>لا توجد تقارير بعد</small></section>')+'<button class="btn gh" onclick="home()">🏠 رجوع</button>'+foot)}
+
+/* ====== إعدادات المشرف ====== */
+function askSup(){modal('<h3>🔐 دخول المشرف</h3><input id="spin" type="password" inputmode="numeric" placeholder="الرقم السري للمشرف"><div class="row2"><button class="btn pri" onclick="chkSup()">دخول</button><button class="btn gh" onclick="closeModal()">إلغاء</button></div>')}
+function chkSup(){if($('#spin').value===S.supPin){closeModal();vSettings()}else toast('❌ رقم سري خاطئ')}
+function vSettings(){clearInterval(TI);const tg=(id,t,v)=>'<label class="tg"><input type="checkbox" id="'+id+'" '+(v?'checked':'')+'><span>'+t+'</span></label>';
+ render(hdr()+'<h2 class="ttl">⚙️ إعدادات المشرف</h2>'+
+ '<section class="card"><h3>👥 الحراس (الاسم + الرقم السري)</h3>'+S.guards.map((g,i)=>'<div class="row2" style="margin-bottom:8px"><input id="gn'+i+'" value="'+esc(g.name)+'" placeholder="الاسم"><input id="gp'+i+'" value="'+esc(g.pin)+'" placeholder="PIN" inputmode="numeric"></div>').join('')+'<small>اترك الاسم فارغاً لإخفاء الحارس.</small></section>'+
+ '<section class="card"><h3>📍 النقاط</h3>'+S.points.map((p,i)=>'<label>النقطة '+(i+1)+'</label><div class="row2"><input id="pa'+i+'" value="'+esc(p.ar)+'" placeholder="عربي"><input id="pe'+i+'" value="'+esc(p.en)+'" placeholder="English" dir="ltr"></div>'+tg('pr'+i,'إلزام مسح QR هذه النقطة في كل جولة',p.inRound)).join('')+'</section>'+
+ '<section class="card"><h3>🕒 المناوبات والجولات</h3><label>الفاصل بين الجولات (دقيقة)</label><input id="iv" type="number" value="'+S.interval+'"><label>صباحي: من / إلى</label><div class="row2"><input id="ms" type="time" value="'+S.shifts.M.start+'"><input id="me" type="time" value="'+S.shifts.M.end+'"></div><label>مسائي: من / إلى</label><div class="row2"><input id="es" type="time" value="'+S.shifts.E.start+'"><input id="ee" type="time" value="'+S.shifts.E.end+'"></div></section>'+
+ '<section class="card"><h3>📨 الإرسال</h3><label>رقم واتساب المشرف (بصيغة دولية بدون +)</label><input id="ph2" value="'+esc(S.phone)+'" inputmode="numeric" dir="ltr"><label>بريد المشرف</label><input id="em" value="'+esc(S.email)+'" dir="ltr"><label>رابط Google Apps Script (اختياري)</label><input id="sy" value="'+esc(S.syncUrl)+'" dir="ltr"></section>'+
+ '<section class="card"><h3>🎛 خيارات</h3>'+tg('tmn','السماح بالتأكيد اليدوي بدل QR',S.allowManual)+tg('tm','مطر الماتريكس',S.matrix)+tg('ts','صوت التنبيه',S.sound)+tg('tw','إبقاء الشاشة مضاءة أثناء المناوبة',S.wake)+'<label>الرقم السري للمشرف</label><input id="sp" value="'+esc(S.supPin)+'" inputmode="numeric"></section>'+
+ '<button class="btn pri big" onclick="saveSet()">💾 حفظ الإعدادات</button><button class="btn gh" onclick="vQR()">🖨 رموز QR للنقاط</button><div class="row2"><button class="btn gh" onclick="backup()">⬇️ نسخة احتياطية</button><button class="btn gh" onclick="restore()">⬆️ استرجاع</button></div><button class="btn gh" onclick="home()">رجوع</button>'+foot)}
+async function saveSet(){const g=i=>$('#'+i).value.trim();
+ S.guards=S.guards.map((x,i)=>({name:g('gn'+i),pin:g('gp'+i)||'1234'}));
+ S.points=S.points.map((p,i)=>({id:p.id,ar:g('pa'+i)||p.ar,en:g('pe'+i)||p.en,inRound:$('#pr'+i).checked}));
+ S.interval=Math.max(10,+g('iv')||120);S.shifts.M.start=g('ms');S.shifts.M.end=g('me');S.shifts.E.start=g('es');S.shifts.E.end=g('ee');
+ S.phone=g('ph2').replace(/\D/g,'');S.email=g('em');S.syncUrl=g('sy');S.allowManual=$('#tmn').checked;S.matrix=$('#tm').checked;S.sound=$('#ts').checked;S.wake=$('#tw').checked;S.supPin=g('sp')||'0000';
+ await kvSet('settings',S);toast('✅ تم الحفظ');home()}
+function vQR(){modal('<div id="qrp"><h3 class="noprint">رموز QR للنقاط (يلزم إنترنت لعرض الصورة، اطبعها ولصقها عند كل نقطة)</h3>'+S.points.map(p=>'<div class="qrc"><img src="https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=12&data='+encodeURIComponent('SOSGUARD|'+p.id)+'" alt="QR"><h2>'+esc(p.ar)+'</h2><div>'+esc(p.en)+'</div><small>SOS Children\'s Villages — Security</small><br><code>SOSGUARD|'+p.id+'</code></div>').join('')+'<div class="row2 noprint"><button class="btn pri" onclick="print()">🖨 طباعة</button><button class="btn gh" onclick="closeModal()">إغلاق</button></div></div>')}
+async function backup(){const reps=await repAll();dl(new Blob([JSON.stringify({v:1,settings:S,reports:reps})],{type:'application/json'}),'SOS-Guard-backup-'+fmtD(Date.now())+'.json')}
+function restore(){const i=document.createElement('input');i.type='file';i.accept='.json,application/json';i.onchange=async()=>{try{const d=JSON.parse(await i.files[0].text());if(d.settings){S=Object.assign({},DEF,d.settings);await kvSet('settings',S)}for(const r of d.reports||[])await repPut(r);toast('✅ تم الاسترجاع');vSettings()}catch(e){toast('ملف غير صالح')}};i.click()}
+
+/* ====== التشغيل ====== */
+(async()=>{
+ S=Object.assign({},DEF,await kvGet('settings')||{});SH=await kvGet('shift')||null;
+ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
+ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+ addEventListener('online',trySync);trySync();
+ if(SH){wake();vDash()}else vLogin()})();
+</script>
+</body>
+</html>
