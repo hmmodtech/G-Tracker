@@ -17,7 +17,7 @@
 <canvas id="rain"></canvas>
 <div id="app">
   <header>
-    <img src="logo.png" alt="SOS" onerror="this.src='icon.svg'">
+    <img src="logo.png" alt="SOS" onerror="this.onerror=null;this.src='icon.svg'">
     <div class="ht"><b>SOS Guard</b><small>نظام تقارير الأمن</small></div>
     <div id="who"></div>
   </header>
@@ -31,6 +31,9 @@
 </div>
 <div id="toast"></div>
 <input type="file" id="fi" hidden>
+<script>
+window.onerror=function(m,s,l,c){var d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#a00;color:#fff;padding:8px;font:12px monospace;direction:ltr;white-space:pre-wrap';d.textContent=m+'\n'+(s||'').split('/').pop()+' line '+l+':'+c;document.body.appendChild(d)};
+</script>
 <script src="app.js"></script>
 <script src="sync.js"></script>
 </body>
