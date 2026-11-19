@@ -12,6 +12,23 @@ async function sha(s){const b=await crypto.subtle.digest('SHA-256',new TextEncod
 function toast(m,ms=2800){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.i);toast.i=setTimeout(()=>t.style.display='none',ms)}
 function dl(file){const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
 
+/* ===== تشفير وتوقيع ===== */
+const enc=new TextEncoder();
+const b64=u=>btoa(String.fromCharCode(...new Uint8Array(u)));
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const ECA={name:'ECDSA',namedCurve:'P-256'},SIG={name:'ECDSA',hash:'SHA-256'};
+const genKP=()=>crypto.subtle.generateKey(ECA,true,['sign','verify']);
+const expJ=k=>crypto.subtle.exportKey('jwk',k);
+const pubOf=k=>({kty:k.kty,crv:k.crv,x:k.x,y:k.y,ext:true,key_ops:['verify']});
+async function signS(str,privJ){const k=await crypto.subtle.importKey('jwk',privJ,ECA,false,['sign']);return b64(await crypto.subtle.sign(SIG,k,enc.encode(str)))}
+async function verS(str,sig,pubJ){try{const k=await crypto.subtle.importKey('jwk',pubJ,ECA,false,['verify']);return await crypto.subtle.verify(SIG,k,unb64(sig),enc.encode(str))}catch(e){return false}}
+async function hpin(pin,salt){const k=await crypto.subtle.importKey('raw',enc.encode(pin),'PBKDF2',false,['deriveBits']);return b64(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb64(salt),iterations:100000,hash:'SHA-256'},k,256))}
+const rsalt=()=>b64(crypto.getRandomValues(new Uint8Array(16)));
+async function setPin(u,pin){u.salt=rsalt();u.ph=await hpin(String(pin),u.salt);delete u.pin;u.mt=Date.now()}
+async function aesKey(pw,salt){const k=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:150000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function keyBackup(j,pw){const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),k=await aesKey(pw,salt);const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,enc.encode(JSON.stringify(j)));await shareFile(new File([JSON.stringify({s:b64(salt),i:b64(iv),c:b64(ct)})],'sos-officer-key.txt',{type:'text/plain'}))}
+const fpr=async p=>(await sha(p.x+p.y)).slice(0,8).toUpperCase();
+
 /* ===== قاعدة البيانات ===== */
 let _db;
 const openDB=()=>new Promise((res,rej)=>{const r=indexedDB.open('sosg4',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>{_db=r.result;res()};r.onerror=()=>rej(r.error)});
@@ -30,18 +47,63 @@ const LV={g:['سليم','Normal','#2dff9a'],y:['ملاحظات','Attention','#d9
 const RES={ok:['سليم - لا ملاحظات','OK - no remarks'],follow:['يحتاج متابعة','Needs follow-up'],esc:['تصعيد','Escalate']};
 const NETQ={slow:['بطيء','Slow'],good:['جيد','Good'],excellent:['ممتاز','Excellent']};
 const INC=[['دخول شخص غير مصرّح','Unauthorized entry attempt','r'],['شخص مشبوه بالقرب من المكان','Suspicious person nearby','y'],['حريق أو دخان','Fire or smoke','r'],['حالة طبية طارئة','Medical emergency','r'],['عطل في الإنارة أو الكاميرات','Lighting / CCTV malfunction','y'],['باب أو بوابة مفتوحة بشكل غير طبيعي','Door / gate found open','y'],['خلاف أو مشاجرة','Dispute or fight','r'],['مركبة غير معروفة','Unknown vehicle','y'],['انقطاع الكهرباء','Power outage','y'],['أخرى (اكتب التفاصيل)','Other (free text)','y']];
-const DEF_CFG={orgKey:'SOSG-2025-KEY',posts:[{id:'GATE',ar:'البوابة',en:'Main Gate'},{id:'BLDG',ar:'بجوار المبنى',en:'Beside the Building'}],shifts:{M:{ar:'صباحي',en:'Morning',from:'07:00',to:'15:00'},E:{ar:'مسائي',en:'Evening',from:'15:00',to:'23:00'}},interval:120,requireQR:true,manualOK:true,matrix:true,sound:true,wake:true,officer:{name:'الأوفيسر',wa:'970567144224',tg:'',email:''}};
+const PK={editGuard:'يعدّل تقارير الحراس',editReview:'يعدّل مراجعات القادة',assign:'يوزّع الحراس والمهام',manageUsers:'يدير حسابات الحراس والقادة',settings:'يغيّر الإعدادات العامة',stats:'يرى الإحصائيات',viewAll:'يرى كل التقارير'};
+const DEFP={guard:{},leader:{stats:1},supervisor:{editGuard:1,editReview:1,assign:1,manageUsers:1,stats:1,viewAll:1},officer:{}};
+const EVL={change:'✏ تغيير',tamper:'⛔ محاولة تلاعب',badpin:'⚠ محاولات دخول خاطئة',lock:'🔒 قفل حساب',red:'🔴 حادث حرج',sos:'🆘 طوارئ',late:'⏰ جولة متأخرة',newdev:'📱 جهاز جديد',lateRep:'⏳ تقرير متأخر',enrol:'🔑 طلب اعتماد مفتاح'};
+const ONB={guard:'1) اضغط «بدء المناوبة».\n2) سجّل كل جولة بمسح QR.\n3) بلّغ عن أي حادث فوراً.\n4) في النهاية أنهِ المناوبة وأرسل التقرير للقائد.\nزر 🆘 بضغطة مطوّلة للطوارئ.',leader:'استورد تقارير حراس شفتك، راجعها، ثم أرسلها للمشرف.\nلا يمكنك تعديل تقرير الحارس.',supervisor:'استورد تقارير القادة وعدّل عند الحاجة (السبب إلزامي).\nوزّع الحراس والمهام من ⚙ ثم أرسل للأوفيسر.',officer:'لديك كل الصلاحيات وتعديلاتك صامتة.\nالتنبيهات والإحصائيات في 📊.'};
+const DEF_CFG={orgKey:'SOSG-2025-KEY',url:'',pub:null,posts:[{id:'GATE',ar:'البوابة',en:'Main Gate'},{id:'BLDG',ar:'بجوار المبنى',en:'Beside the Building'}],shifts:{M:{ar:'صباحي',en:'Morning',from:'07:00',to:'15:00'},E:{ar:'مسائي',en:'Evening',from:'15:00',to:'23:00'}},interval:120,requireQR:true,manualOK:true,matrix:true,sound:true,wake:true,officer:{name:'الأوفيسر',wa:'970567144224'},tasks:[],tasksTs:0,cfgTs:0};
 function defUsers(){const u=[];for(let i=1;i<=9;i++)u.push({id:'G'+i,name:'حارس '+i,pin:'1234',role:'guard',shift:i%2?'M':'E',post:i%2?'GATE':'BLDG'});
-u.push({id:'L1',name:'قائد الشفت الصباحي',pin:'2222',role:'leader',shift:'M'},{id:'L2',name:'قائد الشفت المسائي',pin:'2222',role:'leader',shift:'E'},{id:'S1',name:'المشرف',pin:'0000',role:'supervisor'},{id:'O1',name:'الأوفيسر',pin:'9999',role:'officer'});return u}
+u.push({id:'L1',name:'قائد الشفت الصباحي',pin:'2222',role:'leader',shift:'M',post:'GATE'},{id:'L2',name:'قائد الشفت المسائي',pin:'2222',role:'leader',shift:'E',post:'GATE'},{id:'S1',name:'المشرف',pin:'0000',role:'supervisor',shift:'M',post:'GATE'},{id:'O1',name:'الأوفيسر',pin:'9999',role:'officer',shift:'M',post:'GATE'});return u}
 
-const S={cfg:null,users:[],me:null,shift:null,screen:'login',rd:null,cur:null,pdfP:null,as:0,lastAl:0};
+const S={cfg:null,users:[],me:null,shift:null,screen:'login',rd:null,cur:null,pdfP:null,as:0,lastAl:0,priv:null,sk:null,sec:{},train:false,audit:null,newEv:0,bn:{},onb:'',sf:{},dev:''};
 const ACT={};
+const can=(k,u=S.me)=>!!u&&(u.role==='officer'||(u.perms&&k in u.perms?!!u.perms[k]:!!(DEFP[u.role]||{})[k]));
+const K=()=>encodeURIComponent(S.cfg.orgKey);
 const postOf=id=>S.cfg.posts.find(p=>p.id===id)||{id,ar:id,en:id};
 const shOf=k=>S.cfg.shifts[k]||{ar:k,en:k,from:'00:00',to:'00:00'};
 const durMin=sh=>{const [a,b]=sh.from.split(':').map(Number),[c,d]=sh.to.split(':').map(Number);let m=(c*60+d)-(a*60+b);if(m<=0)m+=1440;return m};
 const expRounds=k=>Math.max(1,Math.floor(durMin(shOf(k))/S.cfg.interval));
 const V=h=>{$('#view').innerHTML=h;scrollTo(0,0);hdr()};
-function hdr(){const w=$('#who');w.innerHTML=S.me?`${esc(S.me.name)}<br><small>${ROLE[S.me.role][0]}</small> <button data-act="logout">خروج</button>`:''}
+function hdr(){const w=$('#who');w.innerHTML=S.me?`${esc(S.me.name)}<br><small>${ROLE[S.me.role][0]}</small> <button data-act="logout">خروج</button>${S.me.role==='officer'&&S.newEv?` <button data-act="stats">🔔<span class="badge">${S.newEv}</span></button>`:''}`:''}
+
+/* ===== شبكة / سكربت Google / طابور الأحداث ===== */
+async function post(o){if(!S.cfg.url||!navigator.onLine)return null;try{const r=await fetch(S.cfg.url,{method:'POST',body:JSON.stringify(o)});return await r.json()}catch(e){return null}}
+async function get(q,base){base=base||S.cfg.url;if(!base||!navigator.onLine)return null;try{const r=await fetch(base+'?'+q,{cache:'no-store'});return await r.json()}catch(e){return null}}
+async function ev(type,text,extra){const q=(await dbGet('q'))||[];q.push(Object.assign({type,text,by:S.me?S.me.name:'-',t:Date.now(),dev:S.dev},extra||{}));await dbSet('q',q.slice(-200));flush()}
+let flushing=false;
+async function flush(){if(flushing||!S.cfg.url||!navigator.onLine)return;flushing=true;try{
+ const q=(await dbGet('q'))||[];if(q.length){const j=await post({k:S.cfg.orgKey,a:'ev',items:q});if(j&&j.ok){const cur=(await dbGet('q'))||[];await dbSet('q',cur.slice(q.length))}}
+ for(const key of['ppub','psup']){const p=await dbGet(key);if(p){const j=await post(p);if(j&&j.ok)await dbDel(key)}}}finally{flushing=false}}
+const tamper=t=>{ev('tamper',t);toast('⛔ '+t,4500)};
+const scriptId=u=>u.replace(/^.*\/macros\/s\//,'').replace(/\/exec.*$/,'');
+function repMeta(rep){const E=eff(rep),g=E.g;return{no:rep.no,guard:g.guardName,post:postOf(g.post).en,sh:g.sh,date:g.date,start:fmtT(g.start),end:fmtT(g.end),rounds:g.rounds.length,exp:g.expected,late:g.rounds.filter(x=>x.late).length,red:g.incidents.filter(x=>x.lv==='r').length,yel:g.incidents.filter(x=>x.lv==='y').length,assist:g.assist.yes?g.assist.type:'',stage:rep.stage,level:(E.review&&E.review.level)||g.level,seal:rep.seal,rank:rank(rep.stage)}}
+const syncRep=rep=>{if(!rep.g.train)ev('rep','',repMeta(rep))};
+
+/* ===== توقيع الإعدادات والتوزيع ===== */
+async function publish(){if(!S.priv)return null;const c=clone(S.cfg);c.officer={name:c.officer.name,wa:c.officer.wa};const body=JSON.stringify({cfg:c,users:S.users,pub:S.cfg.pub,ts:Date.now()});const pkg={body,sig:await signS(body,S.priv)};await dbSet('ppub',{a:'pub',k:S.sec.off,pkg});flush();return pkg}
+async function pubSup(){if(!S.sk||!S.me||S.me.role!=='supervisor')return;const c=S.cfg,body=JSON.stringify({by:S.me.id,ts:Date.now(),users:S.users.filter(u=>['guard','leader'].includes(u.role)),tasks:c.tasks||[],cfg:{interval:c.interval,shifts:c.shifts,posts:c.posts,requireQR:c.requireQR,manualOK:c.manualOK}});await dbSet('psup',{a:'sup',k:S.cfg.orgKey,doc:{body,sig:await signS(body,S.sk)}});flush()}
+function mergeUsers(list,ts){const m=new Map(S.users.map(u=>[u.id,u])),out=[];list.forEach(p=>{const l=m.get(p.id);out.push(!l||(p.mt||0)>=(l.mt||0)?p:l);m.delete(p.id)});m.forEach(l=>{if((l.mt||0)>ts)out.push(l)});S.users=out}
+async function applyPkg(o,auto){if(S.priv)return false;let b;try{b=JSON.parse(o.body)}catch(e){return false}
+ const pub=S.cfg.pub||(!auto&&b.pub);if(!pub||!b.pub)return false;
+ if(!await verS(o.body,o.sig,pub)){tamper('إعدادات غير موقّعة من الأوفيسر');return false}
+ if(S.cfg.pub&&b.pub.x!==S.cfg.pub.x){tamper('مفتاح أوفيسر مختلف');return false}
+ const last=(await dbGet('pkgts'))||0;if(b.ts<last||(auto&&b.ts===last))return false;
+ S.cfg=Object.assign({},DEF_CFG,b.cfg,{pub:b.pub});mergeUsers(b.users,b.ts);
+ await dbSet('cfg',S.cfg);await dbSet('users',S.users);await dbSet('pkgts',b.ts);return true}
+async function applySup(d){let b;try{b=JSON.parse(d.body)}catch(e){return false}
+ const su=S.users.find(u=>u.id===b.by&&u.role==='supervisor'&&u.pk&&!u.off);if(!su||!await verS(d.body,d.sig,su.pk))return false;
+ const mu=can('manageUsers',su),as=can('assign',su);let ch=false;
+ (b.users||[]).forEach(r=>{if(!['guard','leader'].includes(r.role))return;const i=S.users.findIndex(u=>u.id===r.id),l=S.users[i];
+  if(l&&!['guard','leader'].includes(l.role))return;if(l&&(r.mt||0)<=(l.mt||0))return;
+  if(!l){if(mu){S.users.push(Object.assign({},r,{perms:undefined,off:false}));ch=true}return}
+  if(mu){S.users[i]=Object.assign({},r,{perms:l.perms,off:l.off});ch=true}else if(as){S.users[i]=Object.assign({},l,{post:r.post,shift:r.shift,mt:r.mt});ch=true}});
+ if(as&&b.tasks&&b.ts>(S.cfg.tasksTs||0)){S.cfg.tasks=b.tasks;S.cfg.tasksTs=b.ts;ch=true}
+ if(can('settings',su)&&b.cfg&&b.ts>(S.cfg.cfgTs||0)){['interval','shifts','posts','requireQR','manualOK'].forEach(k=>{if(b.cfg[k]!==undefined)S.cfg[k]=b.cfg[k]});S.cfg.cfgTs=b.ts;ch=true}
+ if(ch){await dbSet('users',S.users);await dbSet('cfg',S.cfg)}return ch}
+async function pull(){const j=await get('a=cfg&k='+K());if(!j)return;let ch=false;if(j.pkg&&!S.priv)await applyPkg(j.pkg,true);for(const d of j.sups||[])if(await applySup(d))ch=true;
+ if(ch&&S.priv)await publish();
+ if(S.me){const m=S.users.find(u=>u.id===S.me.id&&!u.off);if(!m){S.me=null;S.shift=null;await dbDel('session');return vLogin()}S.me=m}}
+async function pullAudit(){if(!S.me||S.me.role!=='officer'||!S.sec.off)return;const j=await get('a=audit&k='+encodeURIComponent(S.sec.off));if(j&&j.events){S.audit=j;const seen=(await dbGet('seenEv'))||0;S.newEv=j.events.filter(e=>+e.t>seen).length;hdr()}}
 
 /* ===== صوت / اهتزاز / شاشة ===== */
 let AC,WL;
@@ -55,44 +117,88 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 function rain(){const c=$('#rain'),x=c.getContext('2d');let cols,d;const size=()=>{c.width=innerWidth;c.height=innerHeight;cols=Math.floor(c.width/16);d=Array.from({length:cols},()=>Math.random()*50)};size();addEventListener('resize',size);const ch='01SOS<>/#アイウエオカキ';
 setInterval(()=>{if(!S.cfg.matrix){x.clearRect(0,0,c.width,c.height);return}x.fillStyle='rgba(5,11,26,.12)';x.fillRect(0,0,c.width,c.height);x.font='14px monospace';for(let i=0;i<cols;i++){x.fillStyle=Math.random()>.5?'#19e6ff':'#2dff9a';x.fillText(ch[Math.random()*ch.length|0],i*16,d[i]*16);if(d[i]*16>c.height&&Math.random()>.975)d[i]=0;d[i]++}},70)}
 
-/* ===== حالة التقرير الفعّالة (الأصل + التعديلات) ===== */
+/* ===== التقرير الفعّال (الأصل + التعديلات) ===== */
 function eff(rep){const E=clone({g:rep.g,review:rep.review||null});(rep.amends||[]).forEach(a=>{try{setPath(E,a.k,a.nv)}catch(e){}});return E}
 const showVal=(k,v)=>k.endsWith('level')?(LV[v]?LV[v][0]:v):k==='review.result'?(RES[v]?RES[v][0]:v):v;
 
-/* ===== الجوال: GPS + الإنترنت ===== */
+/* ===== GPS + الإنترنت + الصور ===== */
 const gps=()=>new Promise(r=>{if(!navigator.geolocation)return r(null);navigator.geolocation.getCurrentPosition(p=>r({lat:+p.coords.latitude.toFixed(5),lon:+p.coords.longitude.toFixed(5),acc:Math.round(p.coords.accuracy)}),()=>r(null),{timeout:8000,maximumAge:60000,enableHighAccuracy:true})});
 async function netTest(){if(!navigator.onLine)return{ok:false};const ac=new AbortController();const to=setTimeout(()=>ac.abort(),8000);
 try{const t0=performance.now();const r=await fetch('logo.png?speedtest='+Date.now(),{cache:'no-store',signal:ac.signal});if(!r.ok)throw 0;const b=await r.blob();const dt=Math.max(.05,(performance.now()-t0)/1000);const mbps=+(b.size*8/dt/1e6).toFixed(1);return{ok:true,mbps,q:mbps<1?'slow':mbps<5?'good':'excellent'}}catch(e){return{ok:false}}finally{clearTimeout(to)}}
+const loadImg=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});
+async function shrink(f){const u=URL.createObjectURL(f);try{const im=await loadImg(u),s=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.6)}finally{URL.revokeObjectURL(u)}}
+function qrDraw(cx,text,ox,oy,size){const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount(),m=size/n;cx.fillStyle='#fff';cx.fillRect(ox-4,oy-4,size+8,size+8);cx.fillStyle='#000';for(let r=0;r<n;r++)for(let c=0;c<n;c++)if(q.isDark(r,c))cx.fillRect(ox+c*m,oy+r*m,Math.ceil(m),Math.ceil(m))}
+function qrImg(t){if(!window.qrcode)return 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(t);const c=document.createElement('canvas');c.width=c.height=300;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,300,300);qrDraw(x,t,20,20,260);return c.toDataURL()}
 
 /* ===== البداية ===== */
 async function init(){
  await openDB();
  S.cfg=Object.assign({},DEF_CFG,await dbGet('cfg')||{});
- const u=await dbGet('users');S.users=u||defUsers();if(!u)await dbSet('users',S.users);
- rain();banner();
+ S.dev=await dbGet('dev');if(!S.dev){S.dev=rsalt();await dbSet('dev',S.dev)}
+ S.sec=(await dbGet('sec'))||{off:'',tgToken:'',tgChat:'',email:''};
+ S.train=!!(await dbGet('train'));
+ const u=(await dbGet('users'))||defUsers();for(const x of u){if(x.pin!=null){await setPin(x,x.pin);x.mt=0}}
+ S.users=u;await dbSet('users',u);
+ rain();bannerInit();loadLibs();
  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
- const sid=await dbGet('session');if(sid)S.me=S.users.find(x=>x.id===sid)||null;
+ const qs=new URLSearchParams(location.search);if(qs.get('v'))return vVerify(qs.get('v'),qs.get('s'));
+ const sid=await dbGet('session');if(sid){S.me=S.users.find(x=>x.id===sid&&!x.off)||null;
+  if(S.me&&S.me.role==='officer'){S.priv=await dbGet('offkey');if(!S.priv)S.me=null}
+  if(S.me&&S.me.role==='supervisor')S.sk=await dbGet('supkey:'+S.me.id)}
  home();
+ pull();flush();pullAudit();setInterval(()=>{pull();flush();pullAudit()},120000);addEventListener('online',()=>{pull();flush()});
 }
-function banner(){const sa=matchMedia('(display-mode: standalone)').matches||navigator.standalone;if(sa)return;const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-$('#banner').innerHTML='<div class="b">'+(ios?'⚠ ثبّت التطبيق: افتح الرابط في Safari ← زر المشاركة ← «إضافة إلى الشاشة الرئيسية». بدون التثبيت قد يحذف آيفون بياناتك.':'⚠ ثبّت التطبيق من قائمة المتصفح (تثبيت التطبيق) ليعمل بدون إنترنت.')+'</div>'}
-function showUpdate(w){$('#banner').innerHTML='<div class="b">🔄 يوجد إصدار جديد من التطبيق<br><button class="btn sm pri" id="updb">تحديث الآن</button></div>';$('#updb').onclick=()=>w.postMessage('skip')}
+function bannerInit(){const sa=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+ if(!sa){const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);S.bn.inst=ios?'⚠ ثبّت التطبيق: افتح الرابط في Safari ← زر المشاركة ← «إضافة إلى الشاشة الرئيسية». بدون التثبيت قد يحذف آيفون بياناتك.':'⚠ ثبّت التطبيق من قائمة المتصفح (تثبيت التطبيق) ليعمل بدون إنترنت.'}
+ S.bn.tr=S.train?'🎓 وضع التدريب مفعّل — التقارير لا تُحتسب':'';renderBanner()}
+function renderBanner(){const b=S.bn;$('#banner').innerHTML=[b.inst,b.upd,b.tr,b.rem].filter(Boolean).map(x=>`<div class="b">${x}</div>`).join('')}
+function showUpdate(w){S.waiting=w;S.bn.upd='🔄 يوجد إصدار جديد من التطبيق<br><button class="btn sm pri" data-act="upd">تحديث الآن</button>';renderBanner()}
+ACT.upd=()=>S.waiting&&S.waiting.postMessage('skip');
 if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js').then(reg=>{reg.addEventListener('updatefound',()=>{const w=reg.installing;w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)showUpdate(w)})})}).catch(()=>{});let rl;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(rl)return;rl=1;location.reload()})}
-function loadJsQR(){const s=document.createElement('script');s.src='jsQR.js';s.onerror=()=>{};document.head.appendChild(s)}loadJsQR();
+function loadLibs(){['jsQR.js','qrcode.js'].forEach(f=>{const s=document.createElement('script');s.src=f;s.onerror=()=>{};document.head.appendChild(s)})}
+async function remind(){const reps=await allReps(),lb=(await dbGet('lastbk'))||0,m=[];
+ if(reps.length&&Date.now()-lb>7*864e5)m.push('💾 مضى أكثر من أسبوع على آخر نسخة احتياطية — ⚙ ← نسخة احتياطية');
+ if(S.me&&S.me.role==='officer'&&Date.now()-((await dbGet('lastweekly'))||0)>7*864e5)m.push('📊 حان موعد التقرير الأسبوعي — افتح 📊');
+ S.bn.rem=m.join('<br>');renderBanner()}
 
 document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el)return;const f=ACT[el.dataset.act];if(f){unlockAudio();f(el,e)}});
 document.addEventListener('change',e=>{if(e.target.id==='af')swapAV()});
+let sosT;document.addEventListener('pointerdown',e=>{if(e.target.closest('#sos'))sosT=setTimeout(doSOS,1500)});
+['pointerup','pointercancel','touchmove'].forEach(t=>document.addEventListener(t,()=>clearTimeout(sosT)));
+
+/* ===== التحقق من تقرير (من QR) ===== */
+async function vVerify(v,s){const [no,h]=v.split('.');let r='?';const rep=await dbGet('r:'+no);
+ if(rep){r=(await sha(JSON.stringify(rep.g)+S.cfg.orgKey)===rep.seal&&rep.seal.startsWith(h))?'ok':'bad'}
+ else{const base=S.cfg.url||(s?'https://script.google.com/macros/s/'+s+'/exec':'');const j=await get('a=verify&no='+encodeURIComponent(no),base);if(j&&j.seal)r=j.seal.startsWith(h)?'ok':'bad'}
+ V(`<div class="card hud"><h2>التحقق من التقرير</h2><div class="mut" dir="ltr">${esc(no)}</div>${r==='ok'?'<div class="ok" style="font-size:20px">✔ التقرير أصلي — الختم مطابق</div><div class="mut">الختم يغطي بيانات الحارس الأصلية. أي تعديلات لاحقة تظهر في قسم التعديلات داخل التقرير.</div>':r==='bad'?'<h2 style="color:#ff4d5e">⛔ الختم غير مطابق — قد يكون التقرير معدّلاً</h2>':'<div class="mut">تعذّر التحقق: التقرير غير موجود على هذا الجهاز ولا يوجد اتصال بالإنترنت.</div>'}<button class="btn" data-act="gologin">دخول التطبيق</button></div>`)}
+ACT.gologin=()=>{history.replaceState(null,'',location.pathname);home()};
 
 /* ===== الدخول ===== */
-function home(){
- if(!S.me)return vLogin();
- if(S.me.role==='guard')return vGuard();
- vList();
-}
+async function home(){
+ if(!S.me){S.bn.rem='';renderBanner();return vLogin()}
+ const ro=S.me.role;S.onb=(await dbGet('seen:'+ro))?'':`<div class="card"><h3>👋 مرحباً</h3><p class="mut">${ONB[ro].replace(/\n/g,'<br>')}</p><button class="btn sm pri" data-act="onbOk">فهمت</button></div>`;
+ remind();
+ if(ro==='guard')return vGuard();vList()}
+ACT.onbOk=async()=>{await dbSet('seen:'+S.me.role,1);home()};
 function vLogin(){S.screen='login';
- V(`<div class="card"><h2>تسجيل الدخول</h2><label>المستخدم</label><select id="lu">${S.users.map(u=>`<option value="${u.id}">${esc(u.name)} — ${ROLE[u.role][0]}</option>`).join('')}</select><label>الرقم السري PIN</label><input id="lp" type="password" inputmode="numeric" autocomplete="off"><button class="btn pri" data-act="login">دخول</button></div>`)}
-ACT.login=async()=>{const u=S.users.find(x=>x.id===$('#lu').value);if(!u||String(u.pin)!==$('#lp').value)return toast('الرقم السري غير صحيح');S.me=u;await dbSet('session',u.id);home()};
-ACT.logout=async()=>{S.me=null;S.shift=null;await dbDel('session');vLogin()};
+ V(`<div class="card"><h2>تسجيل الدخول</h2><label>المستخدم</label><select id="lu">${S.users.filter(u=>!u.off).map(u=>`<option value="${esc(u.id)}">${esc(u.name)} — ${ROLE[u.role][0]}</option>`).join('')}</select><label>الرقم السري PIN</label><input id="lp" type="password" inputmode="numeric" autocomplete="off"><button class="btn pri" data-act="login">دخول</button></div>
+ <div class="card"><button class="btn sm" data-act="impTeam">📥 استيراد إعدادات الفريق</button> <button class="btn sm" data-act="restKey">🔑 استعادة مفتاح الأوفيسر</button></div>`)}
+async function officerGate(){S.priv=await dbGet('offkey');if(!S.cfg.pub)return officerSetup();
+ if(!S.priv||S.priv.x!==S.cfg.pub.x){toast('هذا الجهاز غير مخوّل للأوفيسر. استعد المفتاح من شاشة الدخول.',5000);S.priv=null;return false}return true}
+async function officerSetup(){if(!confirm('أول تشغيل للأوفيسر: سيُنشأ مفتاح التوقيع على هذا الجهاز. متابعة؟'))return false;
+ const pw=prompt('اختر كلمة سر لنسخة المفتاح الاحتياطية (6 أحرف فأكثر) واحفظها جيداً:');if(!pw||pw.length<6){toast('كلمة السر قصيرة');return false}
+ const kp=await genKP(),pj=await expJ(kp.privateKey);S.priv=pj;await dbSet('offkey',pj);S.cfg.pub=pubOf(pj);await dbSet('cfg',S.cfg);await keyBackup(pj,pw);toast('احفظ ملف المفتاح في مكان آمن (مثلاً رسائلك المحفوظة)',6000);return true}
+async function supKey(u){let k=await dbGet('supkey:'+u.id);if(!k){const kp=await genKP();k=await expJ(kp.privateKey);await dbSet('supkey:'+u.id,k)}S.sk=k;const p=pubOf(k);if(!u.pk||u.pk.x!==p.x)ev('enrol','طلب اعتماد مفتاح المشرف '+u.name,{uid:u.id,name:u.name,by:u.name,pk:p})}
+ACT.login=async()=>{const u=S.users.find(x=>x.id===$('#lu').value),pin=$('#lp').value;if(!u)return;
+ const lk=(await dbGet('lock:'+u.id))||{n:0,until:0};
+ if(lk.until>Date.now())return toast('الحساب مقفل مؤقتاً، حاول بعد '+Math.ceil((lk.until-Date.now())/60000)+' دقيقة');
+ if(u.off)return toast('هذا الحساب موقوف');
+ if(!u.ph||await hpin(pin,u.salt)!==u.ph){lk.n++;if(lk.n>=5){lk.until=Date.now()+15*60000;lk.n=0;ev('lock','قُفل حساب '+u.name+' بعد 5 محاولات خاطئة')}else if(lk.n>=3)ev('badpin','محاولات دخول خاطئة ('+lk.n+') على حساب '+u.name);await dbSet('lock:'+u.id,lk);return toast('الرقم السري غير صحيح')}
+ await dbSet('lock:'+u.id,{n:0,until:0});
+ if(u.role==='officer'&&!await officerGate())return;
+ if(u.role==='supervisor')await supKey(u);
+ S.me=u;await dbSet('session',u.id);ev('login','',{uid:u.id,name:u.name});home();if(u.role==='officer')pullAudit()};
+ACT.logout=async()=>{S.me=null;S.shift=null;S.priv=null;S.sk=null;S.audit=null;S.newEv=0;await dbDel('session');vLogin()};
 ACT.home=()=>{stopScan();home()};
 
 /* ===== الحارس ===== */
@@ -100,26 +206,38 @@ async function vGuard(){
  const u=S.me;S.shift=await dbGet('shift:'+u.id);if(S.shift){wake();return vActive()}
  S.screen='ghome';
  const mine=(await allReps()).filter(r=>r.g.guardId===u.id).sort((a,b)=>b.g.start-a.g.start);
- const sh=shOf(u.shift),post=postOf(u.post),ho=await dbGet('handover:'+u.post);
- V(`<div class="card hud"><h2>${esc(u.name)}</h2><div class="mut">الموقع: ${esc(post.ar)} · الشفت: ${sh.ar} (${sh.from}–${sh.to})</div><button class="btn pri big" data-act="startShift">▶ بدء المناوبة</button><div class="mut">الجولة كل ${S.cfg.interval} دقيقة</div></div>
+ const sh=shOf(u.shift),post=postOf(u.post);let ho=await dbGet('handover:'+u.post);
+ const rj=await Promise.race([get('a=handover&k='+K()+'&post='+encodeURIComponent(u.post)),new Promise(r=>setTimeout(()=>r(null),1500))]);
+ if(rj&&rj.t&&(!ho||rj.t>ho.t)){ho=rj;await dbSet('handover:'+u.post,ho)}
+ V(`${S.onb}<div class="card hud"><h2>${esc(u.name)}</h2><div class="mut">الموقع: ${esc(post.ar)} · الشفت: ${sh.ar} (${sh.from}–${sh.to})</div><button class="btn pri big" data-act="startShift">▶ بدء المناوبة${S.train?' (تدريب)':''}</button><div class="mut">الجولة كل ${S.cfg.interval} دقيقة</div></div>
  ${ho?`<div class="card"><h3>تسليم الشفت السابق</h3><div class="mut">${fmtD(ho.t)} — ${esc(ho.by)}</div><p>${esc(ho.text||'لا ملاحظات')}</p></div>`:''}
  <div class="card"><h3>تقاريري</h3>${mine.map(repItem).join('')||'<div class="mut">لا توجد تقارير</div>'}</div>
  <button class="btn" data-act="settings">⚙ أدوات</button>`)}
-ACT.startShift=async()=>{const u=S.me,now=Date.now(),no=`GR-${fmtD(now).replace(/-/g,'')}-${u.id}${u.shift}`;
+ACT.startShift=async()=>{const u=S.me,now=Date.now(),no=`${S.train?'TR':'GR'}-${fmtD(now).replace(/-/g,'')}-${u.id}${u.shift}`;
  if(await dbGet('r:'+no))return toast('يوجد تقرير لهذا الشفت اليوم: '+no);
- S.shift={guardId:u.id,guardName:u.name,post:u.post,sh:u.shift,date:fmtD(now),start:now,nextDue:now+S.cfg.interval*60000,rounds:[],incidents:[],no};
+ S.shift={guardId:u.id,guardName:u.name,post:u.post,sh:u.shift,date:fmtD(now),start:now,nextDue:now+S.cfg.interval*60000,rounds:[],incidents:[],no,train:S.train,tl:clone(S.cfg.tasks||[]),tasks:{}};
  await dbSet('shift:'+u.id,S.shift);wake();toast('بدأت المناوبة');vActive()};
-function vActive(){S.screen='active';const s=S.shift,sh=shOf(s.sh),post=postOf(s.post);
+function vActive(){S.screen='active';const s=S.shift,sh=shOf(s.sh),post=postOf(s.post),tl=s.tl||[];
  V(`<div class="card hud"><div class="mut">${esc(post.ar)} · ${sh.ar} · ${s.no}</div><div id="cd" class="timer">--:--</div><div id="cdl" class="mut"></div><div class="bar"><i id="pb"></i></div><div class="mut">الجولات: ${s.rounds.length} / ${expRounds(s.sh)} · الحوادث: ${s.incidents.length}</div></div>
  <button class="btn pri big" data-act="round">✔ تسجيل جولة</button>
  <button class="btn warn" data-act="inc">⚠ بلاغ حادث</button>
+ ${tl.length?`<div class="card"><h3>مهامي</h3>${tl.map(t=>`<label class="chk"><input type="checkbox" data-act="task" data-id="${esc(t.id)}" ${s.tasks&&s.tasks[t.id]?'checked':''}> ${esc(t.t)}</label>`).join('')}</div>`:''}
  <button class="btn red" data-act="endq">■ إنهاء المناوبة</button>
+ <button class="btn red" id="sos">🆘 طوارئ — اضغط مطولاً</button>
  <div class="card"><h3>سجل الجولات</h3>${s.rounds.map((r,i)=>`<div class="item"><span>${i+1}. ${fmtT(r.t)} ${r.late?'<span class="tag" style="color:#ff4d5e">متأخرة</span>':''}</span><span class="mut">${r.net&&r.net.avail?NETQ[r.net.q][0]:'بدون إنترنت'}</span></div>`).join('')||'<div class="mut">لا جولات بعد</div>'}</div>`);
  tick()}
+ACT.task=async el=>{const s=S.shift;s.tasks=s.tasks||{};if(el.checked)s.tasks[el.dataset.id]=Date.now();else delete s.tasks[el.dataset.id];await dbSet('shift:'+S.me.id,s)};
 function tick(){const cd=$('#cd');if(!cd||!S.shift)return;const s=S.shift,iv=S.cfg.interval*60000,rem=s.nextDue-Date.now(),a=Math.abs(rem);
  cd.textContent=(rem<0?'-':'')+pad(Math.floor(a/60000))+':'+pad(Math.floor(a/1000)%60);cd.className='timer'+(rem<0?' late':rem<5*60000?' soon':'');
  $('#cdl').textContent=rem<0?'الجولة متأخرة!':'الجولة القادمة '+fmtT(s.nextDue);$('#pb').style.width=Math.max(0,Math.min(100,100-rem/iv*100))+'%'}
-setInterval(()=>{if(S.shift&&S.me&&S.me.role==='guard'){if(S.screen==='active')tick();if(S.shift.nextDue<=Date.now()&&Date.now()-S.lastAl>45000){S.lastAl=Date.now();beep()}}},1000);
+setInterval(()=>{if(S.shift&&S.me&&S.me.role==='guard'){if(S.screen==='active')tick();const now=Date.now();
+ if(S.shift.nextDue<=now&&now-S.lastAl>45000){S.lastAl=now;beep()}
+ if(!S.shift.train&&S.shift.nextDue+15*60000<now&&S.escD!==S.shift.nextDue){S.escD=S.shift.nextDue;ev('late','جولة متأخرة أكثر من 15 دقيقة — '+S.shift.guardName+' — '+postOf(S.shift.post).ar)}}},1000);
+
+async function doSOS(){if(navigator.vibrate)navigator.vibrate(400);const g=await gps(),s=S.shift,
+ txt=`🆘 طوارئ SOS\nالحارس: ${s?s.guardName:S.me.name}\nالموقع: ${s?postOf(s.post).ar:''}\nالوقت: ${fmtT(Date.now())}\n${g?'https://maps.google.com/?q='+g.lat+','+g.lon:'GPS غير متوفر'}`;
+ ev('sos',txt,{gps:g});S.alertTxt=txt;
+ V(`<div class="card"><h2 style="color:#ff4d5e">🆘 أُرسل نداء الطوارئ</h2><div class="mut">وصل تلقائياً عبر تلجرام/إيميل عند توفر الإنترنت. اضغط لإرساله أيضاً عبر واتساب:</div><button class="btn red big" data-act="waAlert">إرسال واتساب الآن</button><button class="btn" data-act="home">متابعة</button></div>`)}
 
 /* --- جولة --- */
 const hasScan=()=>!!(navigator.mediaDevices&&(window.BarcodeDetector||window.jsQR));
@@ -143,11 +261,12 @@ ACT.saveRound=async()=>{const s=S.shift,rd=S.rd;toast('جارٍ الحفظ...',1
  s.nextDue=now+S.cfg.interval*60000;await dbSet('shift:'+S.me.id,s);toast('تم تسجيل الجولة ✔');vActive()};
 
 /* --- حادث --- */
-ACT.inc=()=>{S.screen='inc';V(`<div class="card"><h2>بلاغ حادث</h2><label>نوع الحادث</label><select id="it">${INC.map((x,i)=>`<option value="${i}">${x[0]} / ${x[1]}</option>`).join('')}</select><label>الخطورة</label><select id="il"><option value="y">🟡 متوسطة</option><option value="r">🔴 عالية</option></select><label>التفاصيل (لا تكتب أسماء أو بيانات أطفال)</label><textarea id="id"></textarea><button class="btn pri" data-act="saveInc">حفظ البلاغ</button><button class="btn sm" data-act="home">← رجوع</button></div>`);
+ACT.inc=()=>{S.screen='inc';V(`<div class="card"><h2>بلاغ حادث</h2><label>نوع الحادث</label><select id="it">${INC.map((x,i)=>`<option value="${i}">${x[0]} / ${x[1]}</option>`).join('')}</select><label>الخطورة</label><select id="il"><option value="y">🟡 متوسطة</option><option value="r">🔴 عالية</option></select><label>التفاصيل (لا تكتب أسماء أو بيانات أطفال)</label><textarea id="id"></textarea><label>صورة (اختياري) — ⛔ ممنوع تصوير الأطفال</label><input type="file" id="iph" accept="image/*" capture="environment"><button class="btn pri" data-act="saveInc">حفظ البلاغ</button><button class="btn sm" data-act="home">← رجوع</button></div>`);
  $('#it').onchange=()=>{$('#il').value=INC[$('#it').value][2]};$('#il').value=INC[0][2]};
 ACT.saveInc=async()=>{const i=+$('#it').value,d=$('#id').value.trim(),lv=$('#il').value;if(i===INC.length-1&&!d)return toast('اكتب التفاصيل');
- const x={t:Date.now(),ar:INC[i][0],en:INC[i][1],lv,details:d};S.shift.incidents.push(x);await dbSet('shift:'+S.me.id,S.shift);
- if(lv==='r'){S.alertTxt=`🔴 تنبيه حادث\nالحارس: ${S.me.name}\nالموقع: ${postOf(S.shift.post).ar}\nالحادث: ${x.ar} / ${x.en}\nالوقت: ${fmtT(x.t)}\n${d}`;return V(`<div class="card"><h2 style="color:#ff4d5e">تم حفظ البلاغ 🔴</h2><button class="btn red" data-act="waAlert">إرسال تنبيه واتساب فوراً</button><button class="btn" data-act="home">متابعة</button></div>`)}
+ let ph='';const f=$('#iph').files[0];if(f){try{ph=await shrink(f)}catch(e){toast('تعذّر معالجة الصورة')}}
+ const x={t:Date.now(),ar:INC[i][0],en:INC[i][1],lv,details:d,ph};S.shift.incidents.push(x);await dbSet('shift:'+S.me.id,S.shift);
+ if(lv==='r'&&!S.shift.train){const txt=`🔴 تنبيه حادث\nالحارس: ${S.me.name}\nالموقع: ${postOf(S.shift.post).ar}\nالحادث: ${x.ar} / ${x.en}\nالوقت: ${fmtT(x.t)}\n${d}`;ev('red',txt);S.alertTxt=txt;return V(`<div class="card"><h2 style="color:#ff4d5e">تم حفظ البلاغ 🔴</h2><div class="mut">وصل تلقائياً للأوفيسر عند توفر الإنترنت.</div><button class="btn red" data-act="waAlert">إرسال واتساب أيضاً</button><button class="btn" data-act="home">متابعة</button></div>`)}
  toast('تم حفظ البلاغ');vActive()};
 ACT.waAlert=()=>{window.open('https://wa.me/'+S.cfg.officer.wa+'?text='+encodeURIComponent(S.alertTxt),'_blank')};
 
@@ -163,15 +282,18 @@ ACT.as=el=>{S.as=+el.dataset.v;document.querySelectorAll('.seg button').forEach(
 ACT.finish=async()=>{const s=S.shift;if(S.as&&!$('#atype').value.trim())return toast('اكتب نوع المساعدة');if(!confirm('بعد الإغلاق لا يمكن تعديل التقرير. متابعة؟'))return;
  const end=Date.now(),exp=expRounds(s.sh),late=s.rounds.filter(r=>r.late).length;
  const level=s.incidents.some(x=>x.lv==='r')?'r':(s.incidents.length||late||s.rounds.length<exp)?'y':'g';
- const g={no:s.no,guardId:s.guardId,guardName:s.guardName,post:s.post,sh:s.sh,date:s.date,start:s.start,end,expected:exp,rounds:s.rounds,incidents:s.incidents,
+ const g={no:s.no,guardId:s.guardId,guardName:s.guardName,post:s.post,sh:s.sh,date:s.date,start:s.start,end,expected:exp,rounds:s.rounds,incidents:s.incidents,train:!!s.train,
+  tasks:(s.tl||[]).map(t=>({t:t.t,done:!!(s.tasks&&s.tasks[t.id])})),
   assist:{yes:!!S.as,type:S.as?$('#atype').value.trim():'',who:S.as?$('#awho').value.trim():'',details:S.as?$('#adet').value.trim():''},handover:$('#ho').value.trim(),notes:$('#gn').value.trim(),level};
  const rep={no:s.no,g,seal:await sha(JSON.stringify(g)+S.cfg.orgKey),stage:'guard',review:null,supNote:'',amends:[],trail:[{r:'guard',n:s.guardName,a:'أنشأ التقرير وختمه',t:end}]};
- await dbSet('r:'+rep.no,rep);await dbSet('handover:'+s.post,{t:end,by:s.guardName,text:g.handover});await dbDel('shift:'+S.me.id);S.shift=null;toast('تم إغلاق التقرير ✔');vRep(rep.no)};
+ await dbSet('r:'+rep.no,rep);
+ if(!s.train){await dbSet('handover:'+s.post,{t:end,by:s.guardName,text:g.handover});ev('handover','',{post:s.post,text:g.handover,by:s.guardName,t:end});syncRep(rep)}
+ await dbDel('shift:'+S.me.id);S.shift=null;toast('تم إغلاق التقرير ✔');vRep(rep.no)};
 
-/* ===== القوائم للأدوار الأخرى ===== */
-const repItem=r=>{const E=eff(r),lv=(E.review&&E.review.level)||E.g.level;return `<div class="item" data-act="openRep" data-no="${r.no}" style="cursor:pointer"><span><i class="dot lv-${lv}"></i>${esc(r.g.guardName)}<br><small class="mut">${r.no}</small></span><span class="tag">${STAGE[r.stage][0]}</span></div>`};
-async function vList(){S.screen='list';const r=S.me.role;let reps=(await allReps()).sort((a,b)=>b.g.start-a.g.start);if(r==='leader')reps=reps.filter(x=>x.g.sh===S.me.shift);
- V(`<div class="card hud"><h2>${esc(S.me.name)}</h2><div class="mut">${ROLE[r][0]} · ${ROLE[r][1]}</div><button class="btn pri" data-act="impRep">⬇ استيراد تقرير (ملف -data.txt)</button></div>
+/* ===== القوائم ===== */
+const repItem=r=>{const E=eff(r),lv=(E.review&&E.review.level)||E.g.level;return `<div class="item" data-act="openRep" data-no="${r.no}" style="cursor:pointer"><span><i class="dot lv-${lv}"></i>${esc(r.g.guardName)}${r.g.train?' <span class="tag">تدريب</span>':''}<br><small class="mut">${r.no}</small></span><span class="tag">${STAGE[r.stage][0]}</span></div>`};
+async function vList(){S.screen='list';const r=S.me.role;let reps=(await allReps()).sort((a,b)=>b.g.start-a.g.start);if(!can('viewAll'))reps=reps.filter(x=>x.g.sh===S.me.shift);
+ V(`${S.onb}<div class="card hud"><h2>${esc(S.me.name)}</h2><div class="mut">${ROLE[r][0]} · ${ROLE[r][1]}</div><button class="btn pri" data-act="impRep">⬇ استيراد تقرير (ملف -data.txt)</button>${can('stats')?'<button class="btn" data-act="stats">📊 لوحة الإحصائيات</button>':''}</div>
  <div class="card"><h3>التقارير (${reps.length})</h3>${reps.map(repItem).join('')||'<div class="mut">لا توجد تقارير. استورد الملف الذي وصلك.</div>'}</div>
  <button class="btn" data-act="settings">⚙ ${r==='leader'?'أدوات':'الإعدادات'}</button>`)}
 ACT.impRep=()=>pickFile('rep',true);
@@ -181,17 +303,17 @@ ACT.openRep=el=>vRep(el.dataset.no);
 async function vRep(no){S.screen='rep';const rep=await dbGet('r:'+no);if(!rep)return home();S.cur=rep;S.pdfP=makePDF(rep).catch(()=>null);
  const E=eff(rep),g=E.g,post=postOf(g.post),sh=shOf(g.sh),r=S.me.role,vis=(rep.amends||[]).filter(a=>!a.hidden);
  const kv=(a,b)=>`<div class="kv"><span>${a}</span><b>${esc(b||'—')}</b></div>`;
- let h=`<button class="btn sm" data-act="home">← رجوع</button><div class="card"><h2>${rep.no}</h2><span class="tag">${STAGE[rep.stage][0]}</span>
+ let h=`<button class="btn sm" data-act="home">← رجوع</button><div class="card"><h2>${rep.no}</h2><span class="tag">${STAGE[rep.stage][0]}</span>${g.train?' <span class="tag">تدريب</span>':''}
  ${kv('الحارس',g.guardName)}${kv('الموقع',post.ar+' / '+post.en)}${kv('الشفت',sh.ar+' / '+sh.en)}${kv('التاريخ',g.date)}${kv('من - إلى',fmtT(g.start)+' - '+fmtT(g.end))}${kv('الجولات',g.rounds.length+' / '+g.expected+' (متأخرة: '+g.rounds.filter(x=>x.late).length+')')}${kv('الحوادث',g.incidents.length)}
  <div class="kv"><span>حالة الحارس</span><b><i class="dot lv-${g.level}"></i>${LV[g.level][0]}</b></div>
  ${kv('مساعدة الموظفين',g.assist.yes?'نعم — '+g.assist.type+(g.assist.who?' ('+g.assist.who+')':'')+(g.assist.details?' — '+g.assist.details:''):'لا')}
  ${kv('تسليم الشفت',g.handover)}${g.notes?kv('ملاحظات',g.notes):''}</div>
  <div class="card"><h3>الجولات</h3><table><tr><th>#</th><th>الوقت</th><th>التحقق</th><th>الإنترنت</th></tr>${g.rounds.map((x,i)=>`<tr><td>${i+1}</td><td>${fmtT(x.t)}${x.late?' ⚠':''}</td><td>${x.method==='scan'?'QR':'يدوي'}</td><td>${x.net&&x.net.avail?NETQ[x.net.q][0]:'—'}</td></tr>`).join('')}</table></div>
- ${g.incidents.length?`<div class="card"><h3>الحوادث</h3>${g.incidents.map(x=>`<div class="item"><span><i class="dot lv-${x.lv}"></i>${fmtT(x.t)} ${esc(x.ar)}<br><small class="mut">${esc(x.details)}</small></span></div>`).join('')}</div>`:''}`;
+ ${g.incidents.length?`<div class="card"><h3>الحوادث</h3>${g.incidents.map(x=>`<div class="item"><span><i class="dot lv-${x.lv}"></i>${fmtT(x.t)} ${esc(x.ar)}<br><small class="mut">${esc(x.details)}</small>${x.ph?`<img src="${x.ph}" style="width:100%;border-radius:8px;margin-top:6px">`:''}</span></div>`).join('')}</div>`:''}
+ ${(g.tasks||[]).length?`<div class="card"><h3>المهام</h3>${g.tasks.map(t=>`<div class="kv"><span>${esc(t.t)}</span><b>${t.done?'✔':'✘'}</b></div>`).join('')}</div>`:''}`;
  if(E.review)h+=`<div class="card"><h3>مراجعة القائد</h3>${kv('النتيجة',RES[E.review.result][0])}<div class="kv"><span>المستوى</span><b><i class="dot lv-${E.review.level}"></i>${LV[E.review.level][0]}</b></div>${kv('الملاحظات',E.review.remarks)}${kv('الإجراء',E.review.action)}${kv('بواسطة',E.review.by)}</div>`;
  if(vis.length)h+=`<div class="card"><h3>تعديلات</h3>${vis.map(a=>`<div class="item"><span>${esc(a.lbl)}<br><small class="mut">${esc(showVal(a.k,a.old))} ← ${esc(showVal(a.k,a.nv))}<br>السبب: ${esc(a.reason)} · ${esc(a.by)} · ${fmtD(a.t)} ${fmtT(a.t)}</small></span></div>`).join('')}</div>`;
  if(rep.supNote)h+=`<div class="card"><h3>ملاحظة المشرف</h3><p>${esc(rep.supNote)}</p></div>`;
- /* إجراءات حسب الدور */
  if(r==='guard'&&g.guardId===S.me.id)h+=`<button class="btn pri" data-act="sendNext">📤 ${rank(rep.stage)>=1?'إعادة الإرسال':'إرسال'} إلى القائد (PDF + ملف البيانات)</button>`;
  if(r==='leader'&&(rep.stage==='at_leader'||rep.stage==='reviewed')){const rv=rep.review||{result:'ok',level:E.g.level,remarks:'',action:''};
   h+=`<div class="card"><h3>مراجعة القائد</h3><label>النتيجة</label><select id="rr">${Object.keys(RES).map(k=>`<option value="${k}" ${rv.result===k?'selected':''}>${RES[k][0]}</option>`).join('')}</select><label>المستوى</label><select id="rl">${Object.keys(LV).map(k=>`<option value="${k}" ${rv.level===k?'selected':''}>${LV[k][0]}</option>`).join('')}</select><label>الملاحظات (إلزامية إن لم تكن النتيجة سليم)</label><textarea id="rm">${esc(rv.remarks)}</textarea><label>الإجراء المتخذ</label><input id="ra" value="${esc(rv.action)}"><button class="btn pri" data-act="saveReview">حفظ المراجعة</button></div>`;
@@ -200,29 +322,28 @@ async function vRep(no){S.screen='rep';const rep=await dbGet('r:'+no);if(!rep)re
  if(r==='officer'){h+=amendPanel(rep)+`<button class="btn pri" data-act="shareAny">📤 مشاركة (واتساب / تلجرام / إيميل)</button>`;if(rep.stage!=='final')h+=`<button class="btn" data-act="receive">✔ تسجيل الاستلام</button>`}
  h+=`<button class="btn" data-act="dlPdf">⬇ تنزيل PDF</button><div class="card"><h3>مسار التقرير</h3>${rep.trail.map(t=>`<div class="mut">${fmtD(t.t)} ${fmtT(t.t)} — ${esc(t.n)}: ${esc(t.a)}</div>`).join('')}<div class="mut" style="word-break:break-all;margin-top:6px">الختم: ${rep.seal.slice(0,24)}…</div></div>`;
  V(h)}
-
-/* --- مراجعة القائد --- */
 ACT.saveReview=async()=>{const rep=S.cur,res=$('#rr').value,rm=$('#rm').value.trim();if(res!=='ok'&&!rm)return toast('اكتب الملاحظات');
- rep.review={result:res,level:$('#rl').value,remarks:rm,action:$('#ra').value.trim(),by:S.me.name,at:Date.now()};rep.stage='reviewed';rep.trail.push({r:'leader',n:S.me.name,a:'حفظ المراجعة',t:Date.now()});await dbSet('r:'+rep.no,rep);toast('تم حفظ المراجعة');vRep(rep.no)};
+ rep.review={result:res,level:$('#rl').value,remarks:rm,action:$('#ra').value.trim(),by:S.me.name,at:Date.now()};rep.stage='reviewed';rep.trail.push({r:'leader',n:S.me.name,a:'حفظ المراجعة',t:Date.now()});await dbSet('r:'+rep.no,rep);syncRep(rep);toast('تم حفظ المراجعة');vRep(rep.no)};
 ACT.saveSup=async()=>{const rep=S.cur;rep.supNote=$('#sn').value.trim();rep.trail.push({r:'supervisor',n:S.me.name,a:'أضاف ملاحظة',t:Date.now()});await dbSet('r:'+rep.no,rep);toast('تم الحفظ');vRep(rep.no)};
-ACT.receive=async()=>{const rep=S.cur;rep.stage='final';rep.trail.push({r:'officer',n:S.me.name,a:'استلم التقرير',t:Date.now()});await dbSet('r:'+rep.no,rep);vRep(rep.no)};
+ACT.receive=async()=>{const rep=S.cur;rep.stage='final';rep.trail.push({r:'officer',n:S.me.name,a:'استلم التقرير',t:Date.now()});await dbSet('r:'+rep.no,rep);syncRep(rep);vRep(rep.no)};
 
-/* --- التعديل (المشرف: ظاهر مع سبب إلزامي | الأوفيسر: صامت) --- */
+/* --- التعديل (المشرف: ظاهر وسبب إلزامي | الأوفيسر: صامت) --- */
 function FIELDS(rep){const E=eff(rep),f=[{k:'g.level',l:'مستوى تقرير الحارس',t:'level'},{k:'g.handover',l:'ملاحظات التسليم'},{k:'g.notes',l:'ملاحظات الحارس العامة'}];
  if(E.g.assist.yes)f.push({k:'g.assist.type',l:'نوع المساعدة'},{k:'g.assist.details',l:'تفاصيل المساعدة'});
  E.g.incidents.forEach((x,i)=>f.push({k:`g.incidents.${i}.details`,l:'تفاصيل الحادث '+(i+1)}));
- if(E.review)f.push({k:'review.result',l:'نتيجة مراجعة القائد',t:'result'},{k:'review.level',l:'مستوى مراجعة القائد',t:'level'},{k:'review.remarks',l:'ملاحظات القائد'},{k:'review.action',l:'إجراء القائد'});return f}
+ if(E.review)f.push({k:'review.result',l:'نتيجة مراجعة القائد',t:'result'},{k:'review.level',l:'مستوى مراجعة القائد',t:'level'},{k:'review.remarks',l:'ملاحظات القائد'},{k:'review.action',l:'إجراء القائد'});
+ return f.filter(x=>x.k.startsWith('review.')?can('editReview'):can('editGuard'))}
 function avCtl(f,rep){const cur=getPath(eff(rep),f.k)||'';if(f.t==='level')return `<label>القيمة الجديدة</label><select id="av">${Object.keys(LV).map(k=>`<option value="${k}" ${cur===k?'selected':''}>${LV[k][0]}</option>`).join('')}</select>`;
  if(f.t==='result')return `<label>القيمة الجديدة</label><select id="av">${Object.keys(RES).map(k=>`<option value="${k}" ${cur===k?'selected':''}>${RES[k][0]}</option>`).join('')}</select>`;
  return `<label>القيمة الجديدة</label><textarea id="av">${esc(cur)}</textarea>`}
-function amendPanel(rep){const fl=FIELDS(rep);return `<div class="card"><h3>تعديل التقرير</h3><div class="mut">التقرير الأصلي للحارس يبقى مختوماً، والتعديل يُحفظ فوقه.</div><label>الحقل</label><select id="af">${fl.map(f=>`<option value="${f.k}">${f.l}</option>`).join('')}</select><div id="avb">${avCtl(fl[0],rep)}</div><label>سبب التعديل ${S.me.role==='officer'?'(اختياري)':'*'}</label><input id="ar"><button class="btn pri" data-act="amend">تطبيق التعديل</button></div>`}
-function swapAV(){const f=FIELDS(S.cur).find(x=>x.k===$('#af').value);$('#avb').innerHTML=avCtl(f,S.cur)}
+function amendPanel(rep){const fl=FIELDS(rep);if(!fl.length)return '';return `<div class="card"><h3>تعديل التقرير</h3><div class="mut">التقرير الأصلي للحارس يبقى مختوماً، والتعديل يُحفظ فوقه.</div><label>الحقل</label><select id="af">${fl.map(f=>`<option value="${f.k}">${f.l}</option>`).join('')}</select><div id="avb">${avCtl(fl[0],rep)}</div><label>سبب التعديل ${S.me.role==='officer'?'(اختياري)':'*'}</label><input id="ar"><button class="btn pri" data-act="amend">تطبيق التعديل</button></div>`}
+function swapAV(){const f=FIELDS(S.cur).find(x=>x.k===$('#af').value);if(f)$('#avb').innerHTML=avCtl(f,S.cur)}
 ACT.amend=async()=>{const rep=S.cur,f=FIELDS(rep).find(x=>x.k===$('#af').value),nv=$('#av').value.trim(),reason=$('#ar').value.trim(),off=S.me.role==='officer';
- if(!off&&!reason)return toast('سبب التعديل إلزامي');const old=getPath(eff(rep),f.k);if(old===nv)return toast('لا يوجد تغيير');
+ if(!f)return;if(!off&&!reason)return toast('سبب التعديل إلزامي');const old=getPath(eff(rep),f.k);if(old===nv)return toast('لا يوجد تغيير');
  rep.amends.push({k:f.k,lbl:f.l,old,nv,by:S.me.name,role:S.me.role,t:Date.now(),reason,hidden:off});
  if(off){const pl=(await dbGet('priv'))||[];pl.push({t:Date.now(),rep:rep.no,k:f.k,old,nv,reason});await dbSet('priv',pl)}
- else rep.trail.push({r:S.me.role,n:S.me.name,a:'عدّل: '+f.l,t:Date.now()});
- await dbSet('r:'+rep.no,rep);toast('تم التعديل');vRep(rep.no)};
+ else{rep.trail.push({r:S.me.role,n:S.me.name,a:'عدّل: '+f.l,t:Date.now()});ev('change',S.me.name+' عدّل «'+f.l+'» في '+rep.no+' — السبب: '+reason)}
+ await dbSet('r:'+rep.no,rep);syncRep(rep);toast('تم التعديل');vRep(rep.no)};
 
 /* --- الإرسال --- */
 function summary(rep,to){const E=eff(rep),g=E.g;return `تقرير مناوبة ${rep.no}\nالحارس: ${g.guardName}\nالموقع: ${postOf(g.post).ar}\nالتاريخ: ${g.date}\nالجولات: ${g.rounds.length}/${g.expected}\nالحوادث: ${g.incidents.length}\nالحالة: ${LV[(E.review&&E.review.level)||g.level][0]}\n${to?'إلى: '+to+'\n':''}— SOS Guard`}
@@ -232,61 +353,121 @@ async function shareRep(rep,copy,to){const pdf=await (S.pdfP||makePDF(rep));if(!
  dl(f1);setTimeout(()=>dl(f2),600);toast('تم تنزيل الملفين — أرسلهما يدوياً');return true}
 ACT.sendNext=async()=>{const rep=S.cur,r=S.me.role,m={guard:['sent_leader','القائد'],leader:['sent_sup','المشرف'],supervisor:['sent_off','الأوفيسر']}[r];if(!m)return;
  const copy=clone(rep);copy.stage=m[0];copy.trail.push({r,n:S.me.name,a:'أرسل إلى '+m[1],t:Date.now()});
- if(await shareRep(rep,copy,m[1])){await dbSet('r:'+rep.no,copy);vRep(rep.no)}};
+ if(await shareRep(rep,copy,m[1])){await dbSet('r:'+rep.no,copy);syncRep(copy);vRep(rep.no)}};
 ACT.shareAny=()=>shareRep(S.cur,S.cur,'');
 ACT.dlPdf=async()=>{const p=await (S.pdfP||makePDF(S.cur));if(p)dl(new File([p],S.cur.no+'.pdf',{type:'application/pdf'}))};
 
-/* --- استيراد التقارير --- */
+/* --- استيراد --- */
 function pickFile(mode,multi){const f=$('#fi');f.dataset.mode=mode;f.multiple=!!multi;f.value='';f.click()}
-$('#fi').addEventListener('change',async e=>{const fs=[...e.target.files],m=e.target.dataset.mode;if(!fs.length)return;if(m==='rep')await importReps(fs);if(m==='team')await importTeam(fs[0]);if(m==='restore')await restore(fs[0])});
-async function importReps(files){const r=S.me.role,need={leader:'sent_leader',supervisor:'sent_sup',officer:null}[r];let n=0;
+$('#fi').addEventListener('change',async e=>{const fs=[...e.target.files],m=e.target.dataset.mode;if(!fs.length)return;if(m==='rep')await importReps(fs);if(m==='team')await importTeam(fs[0]);if(m==='restore')await restore(fs[0]);if(m==='key')await restKey(fs[0])});
+async function importReps(files){const r=S.me.role,need={leader:'sent_leader',supervisor:'sent_sup',officer:'sent_off'}[r];let n=0;
  for(const f of files){let rep;try{rep=JSON.parse(await f.text())}catch(e){toast('ملف غير صالح: '+f.name);continue}
   if(!rep||!rep.g||!rep.seal||!rep.no||!STAGE[rep.stage]){toast('ليس ملف تقرير');continue}
-  if(await sha(JSON.stringify(rep.g)+S.cfg.orgKey)!==rep.seal){toast('⛔ فشل الختم أو مفتاح المؤسسة مختلف: '+rep.no,4500);continue}
-  if(need&&rep.stage!==need){toast('هذا التقرير غير موجّه لك ('+STAGE[rep.stage][0]+')',4000);continue}
+  if(await sha(JSON.stringify(rep.g)+S.cfg.orgKey)!==rep.seal){tamper('فشل ختم التقرير '+rep.no+' أو مفتاح المؤسسة مختلف');continue}
+  if(rep.stage!==need){toast('هذا التقرير غير موجّه لك ('+STAGE[rep.stage][0]+')',4000);continue}
   if(r==='leader'&&rep.g.sh!==S.me.shift){toast('التقرير من شفت آخر');continue}
-  const ex=await dbGet('r:'+rep.no);if(ex&&rank(ex.stage)>=rank(rep.stage)&&r!=='officer'){toast('موجود مسبقاً: '+rep.no);continue}
+  const ex=await dbGet('r:'+rep.no);if(ex&&rank(ex.stage)>=rank(rep.stage)){toast('موجود مسبقاً: '+rep.no);continue}
   if(r==='leader')rep.stage='at_leader';if(r==='supervisor')rep.stage='at_sup';
-  rep.trail.push({r,n:S.me.name,a:'استلم التقرير',t:Date.now()});await dbSet('r:'+rep.no,rep);n++}
+  rep.trail.push({r,n:S.me.name,a:'استلم التقرير',t:Date.now()});await dbSet('r:'+rep.no,rep);syncRep(rep);n++}
  if(n)toast('تم استيراد '+n+' تقرير ✔');vList()}
 
-/* ===== الإعدادات والأدوات ===== */
-function userCard(u,i){const off=S.me.role==='officer';if(!off&&!['guard','leader'].includes(u.role))return '';
- return `<div class="card" style="margin:6px 0"><div class="row2"><input id="un${i}" value="${esc(u.name)}"><input id="up${i}" value="${esc(u.pin)}" inputmode="numeric" style="max-width:100px"></div>
- <div class="row2"><select id="ur${i}" ${off?'':'disabled'}>${Object.keys(ROLE).map(k=>`<option value="${k}" ${u.role===k?'selected':''}>${ROLE[k][0]}</option>`).join('')}</select><select id="us${i}"><option value="M" ${u.shift==='M'?'selected':''}>صباحي</option><option value="E" ${u.shift==='E'?'selected':''}>مسائي</option></select><select id="uo${i}">${S.cfg.posts.map(p=>`<option value="${p.id}" ${u.post===p.id?'selected':''}>${p.ar}</option>`).join('')}</select></div>
- ${off&&u.role!=='officer'?`<button class="btn red sm" data-act="delU" data-i="${i}">حذف</button>`:''}</div>`}
-function collectUsers(){S.users.forEach((u,i)=>{const n=$('#un'+i);if(!n)return;u.name=n.value.trim()||u.name;if($('#up'+i).value.trim().length>=4)u.pin=$('#up'+i).value.trim();if(S.me.role==='officer')u.role=$('#ur'+i).value;u.shift=$('#us'+i).value;u.post=$('#uo'+i).value})}
-async function vSet(){S.screen='set';const r=S.me.role,c=S.cfg,adm=r==='supervisor'||r==='officer',off=r==='officer';
- let h='<button class="btn sm" data-act="home">← رجوع</button>';
- if(adm)h+=`<div class="card"><h3>المستخدمون وتوزيعهم</h3><div class="mut">الاسم · PIN · الدور · الشفت · الموقع</div>${S.users.map(userCard).join('')}<button class="btn" data-act="addUser">+ إضافة مستخدم</button><button class="btn pri" data-act="saveUsers">حفظ المستخدمين</button></div>
- <div class="card"><h3>رموز QR للمواقع</h3><div class="qrs">${c.posts.map(p=>`<div><img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('SOS|'+p.id)}" alt="QR"><br>${p.ar}<br><small>SOS|${p.id}</small></div>`).join('')}</div><div class="mut">الصور تحتاج إنترنت لمرة واحدة، اطبعها وألصقها في كل موقع.</div></div>`;
- if(off)h+=`<div class="card"><h3>الإعدادات العامة</h3><label>فترة الجولة (دقيقة)</label><input id="ci" type="number" value="${c.interval}"><label>الصباحي: من / إلى</label><div class="row2"><input id="cm1" value="${c.shifts.M.from}"><input id="cm2" value="${c.shifts.M.to}"></div><label>المسائي: من / إلى</label><div class="row2"><input id="ce1" value="${c.shifts.E.from}"><input id="ce2" value="${c.shifts.E.to}"></div>
- ${[['requireQR','إلزام مسح QR'],['manualOK','السماح بالتأكيد اليدوي'],['matrix','خلفية Matrix'],['sound','الصوت'],['wake','إبقاء الشاشة مضاءة']].map(([k,l])=>`<label><input type="checkbox" id="c_${k}" ${c[k]?'checked':''} style="width:auto"> ${l}</label>`).join('')}
- <h3 style="margin-top:14px">قنوات الأوفيسر</h3><label>واتساب (بصيغة دولية)</label><input id="ow" value="${esc(c.officer.wa)}"><label>تلجرام (معرّف أو رقم)</label><input id="ot" value="${esc(c.officer.tg)}"><label>الإيميل</label><input id="oe" value="${esc(c.officer.email)}">
- <label>مفتاح المؤسسة (يجب أن يتطابق على كل الجوالات)</label><input id="ok" value="${esc(c.orgKey)}"><button class="btn pri" data-act="saveCfg">حفظ الإعدادات</button></div>`;
- h+=`<div class="card"><h3>أدوات</h3>${off?'<button class="btn" data-act="expTeam">📤 تصدير إعدادات الفريق (للجوالات)</button>':''}<button class="btn" data-act="impTeam">📥 استيراد إعدادات الفريق</button><button class="btn" data-act="backup">💾 نسخة احتياطية</button><button class="btn" data-act="restoreB">♻ استعادة نسخة</button><button class="btn" data-act="testSound">🔔 اختبار الصوت</button></div>`;
- if(off){const pl=(await dbGet('priv'))||[];h+=`<div class="card"><h3>سجلّك الخاص</h3><div class="mut">لا يراه أحد غيرك.</div><button class="btn sm" data-act="togglePriv">${S.priv?'إخفاء':'إظهار'}</button>${S.priv?pl.slice().reverse().map(x=>`<div class="item"><span>${x.rep}<br><small class="mut">${esc(x.k)}: ${esc(x.old)} ← ${esc(x.nv)}<br>${fmtD(x.t)} ${fmtT(x.t)}</small></span></div>`).join('')||'<div class="mut">فارغ</div>':''}</div>`}
+/* ===== الإحصائيات ===== */
+const pc=(a,b)=>b?Math.round(a/b*100):0;
+function statsData(reps){const D={n:reps.length,stage:{},guards:{},posts:{},inc:{},red:0,yel:0,assist:{},net:{slow:0,good:0,excellent:0,none:0},late:0,rounds:0,exp:0,overdue:[]},now=Date.now();
+ reps.forEach(r=>{const E=eff(r),g=E.g,pn=postOf(g.post).ar;D.stage[r.stage]=(D.stage[r.stage]||0)+1;
+  const gr=D.guards[g.guardName]=D.guards[g.guardName]||{n:0,r:0,e:0,l:0},pp=D.posts[pn]=D.posts[pn]||{n:0,r:0,e:0,l:0},lt=g.rounds.filter(x=>x.late).length;
+  [gr,pp].forEach(o=>{o.n++;o.r+=g.rounds.length;o.e+=g.expected;o.l+=lt});D.rounds+=g.rounds.length;D.exp+=g.expected;D.late+=lt;
+  g.incidents.forEach(x=>{D.inc[x.ar]=(D.inc[x.ar]||0)+1;x.lv==='r'?D.red++:D.yel++});
+  if(g.assist.yes){const k=g.assist.type||'—';D.assist[k]=(D.assist[k]||0)+1}
+  g.rounds.forEach(x=>{D.net[x.net&&x.net.avail?x.net.q:'none']++});
+  const last=r.trail[r.trail.length-1].t;if(['sent_leader','at_leader','reviewed','sent_sup','at_sup'].includes(r.stage)&&now-last>12*36e5)D.overdue.push({no:r.no,st:STAGE[r.stage][0],h:Math.round((now-last)/36e5)})});return D}
+function statsText(t,range,D){return `📊 ${t}\n${range}\nعدد التقارير: ${D.n}\nالالتزام بالجولات: ${pc(D.rounds,D.exp)}% (${D.rounds}/${D.exp})\nجولات متأخرة: ${D.late}\nحوادث: 🔴${D.red} 🟡${D.yel}\nمساعدات موظفين: ${Object.values(D.assist).reduce((a,b)=>a+b,0)}\nالإنترنت: ممتاز ${D.net.excellent} · جيد ${D.net.good} · بطيء ${D.net.slow} · غير متوفر ${D.net.none}\nتقارير متأخرة: ${D.overdue.length}\n\n`+Object.entries(D.guards).map(([n,o])=>`• ${n}: ${pc(o.r,o.e)}%`).join('\n')+'\n— SOS Guard'}
+const barRow=(l,p,t,red)=>`<div class="kv"><span>${esc(l)}</span><b>${t}</b></div><div class="bar${red?' r':''}"><i style="width:${p}%"></i></div>`;
+async function vStats(){S.screen='stats';if(S.me.role==='officer')await pullAudit();const f=S.sf,all=(await allReps()).filter(r=>!r.g.train&&(can('viewAll')||r.g.sh===S.me.shift));
+ const reps=all.filter(r=>(!f.from||r.g.date>=f.from)&&(!f.to||r.g.date<=f.to)&&(!f.sh||r.g.sh===f.sh)&&(!f.g||r.g.guardId===f.g)),D=statsData(reps),off=S.me.role==='officer',guards=[...new Map(all.map(r=>[r.g.guardId,r.g.guardName]))];
+ let h=`<button class="btn sm" data-act="home">← رجوع</button><div class="card hud"><h2>📊 لوحة الإحصائيات</h2><div class="row2"><input type="date" id="sf1" value="${f.from||''}"><input type="date" id="sf2" value="${f.to||''}"></div><div class="row2"><select id="sf3"><option value="">كل الشفتات</option><option value="M" ${f.sh==='M'?'selected':''}>صباحي</option><option value="E" ${f.sh==='E'?'selected':''}>مسائي</option></select><select id="sf4"><option value="">كل الحراس</option>${guards.map(([id,n])=>`<option value="${esc(id)}" ${f.g===id?'selected':''}>${esc(n)}</option>`).join('')}</select></div><button class="btn pri sm" data-act="applyF">تطبيق</button></div>
+ <div class="card"><h3>الملخص</h3><div class="kv"><span>التقارير</span><b>${D.n}</b></div>${barRow('الالتزام بالجولات',pc(D.rounds,D.exp),pc(D.rounds,D.exp)+'% ('+D.rounds+'/'+D.exp+')')}<div class="kv"><span>جولات متأخرة</span><b>${D.late}</b></div><div class="kv"><span>حوادث 🔴 / 🟡</span><b>${D.red} / ${D.yel}</b></div></div>
+ <div class="card"><h3>التقارير حسب المرحلة</h3>${Object.keys(STAGE).filter(k=>D.stage[k]).map(k=>barRow(STAGE[k][0],pc(D.stage[k],D.n),D.stage[k])).join('')||'<div class="mut">لا بيانات</div>'}</div>
+ ${D.overdue.length?`<div class="card"><h3>⏳ تقارير متأخرة (أكثر من 12 ساعة)</h3>${D.overdue.map(o=>`<div class="item"><span>${o.no}<br><small class="mut">${o.st}</small></span><span class="tag">${o.h} س</span></div>`).join('')}</div>`:''}
+ <div class="card"><h3>الالتزام لكل حارس</h3>${Object.entries(D.guards).map(([n,o])=>barRow(n,pc(o.r,o.e),pc(o.r,o.e)+'% · متأخرة '+o.l,pc(o.r,o.e)<70)).join('')||'<div class="mut">لا بيانات</div>'}</div>
+ <div class="card"><h3>الالتزام لكل موقع</h3>${Object.entries(D.posts).map(([n,o])=>barRow(n,pc(o.r,o.e),pc(o.r,o.e)+'%',pc(o.r,o.e)<70)).join('')||'<div class="mut">لا بيانات</div>'}</div>
+ <div class="card"><h3>الحوادث حسب النوع</h3>${Object.entries(D.inc).map(([n,c])=>barRow(n,pc(c,D.red+D.yel),c)).join('')||'<div class="mut">لا حوادث</div>'}</div>
+ <div class="card"><h3>مساعدات الموظفين</h3>${Object.entries(D.assist).map(([n,c])=>`<div class="kv"><span>${esc(n)}</span><b>${c}</b></div>`).join('')||'<div class="mut">لا مساعدات</div>'}</div>
+ <div class="card"><h3>جودة الإنترنت (الجولات)</h3>${[['excellent','ممتاز'],['good','جيد'],['slow','بطيء'],['none','غير متوفر']].map(([k,l])=>barRow(l,pc(D.net[k],D.rounds),D.net[k],k==='slow'||k==='none')).join('')}</div>
+ <div class="card"><h3>تقارير دورية</h3><button class="btn" data-act="rep7">📤 التقرير الأسبوعي (7 أيام)</button><button class="btn" data-act="rep30">📤 التقرير الشهري (30 يوم)</button></div>`;
+ if(off){const a=S.audit;h+=`<div class="card"><h3>🔔 التنبيهات وسجل التغييرات</h3>${a?`${(a.enrols||[]).map(e=>`<div class="item"><span>طلب اعتماد مفتاح: ${esc(e.name)}</span><button class="btn sm pri" data-act="enrolOk" data-u="${esc(e.uid)}">اعتماد</button></div>`).join('')}${a.events.slice(0,60).map(e=>`<div class="item"><span>${esc(EVL[e.type]||e.type)}<br><small class="mut">${esc(e.text)} — ${esc(e.by)} · ${e.t?fmtD(+e.t)+' '+fmtT(+e.t):''}</small></span></div>`).join('')||'<div class="mut">لا شيء</div>'}<button class="btn sm" data-act="seenEv">تم الاطلاع</button>`:'<div class="mut">يحتاج إنترنت وإعداد سكربت Google (⚙ ← قنوات الأوفيسر).</div>'}</div>`}
  V(h)}
-ACT.settings=vSet;ACT.togglePriv=()=>{S.priv=!S.priv;vSet()};
-ACT.saveUsers=async()=>{collectUsers();await dbSet('users',S.users);toast('تم الحفظ');vSet()};
-ACT.addUser=async()=>{collectUsers();S.users.push({id:'U'+Date.now().toString(36),name:'مستخدم جديد',pin:'1234',role:'guard',shift:'M',post:'GATE'});await dbSet('users',S.users);vSet()};
-ACT.delU=async el=>{if(S.me.role!=='officer')return;if(!confirm('حذف هذا الحساب؟'))return;collectUsers();const u=S.users[+el.dataset.i];if(u.role==='officer')return toast('لا يمكن حذف الأوفيسر');S.users.splice(+el.dataset.i,1);await dbSet('users',S.users);vSet()};
-ACT.saveCfg=async()=>{const c=S.cfg;c.interval=Math.max(5,+$('#ci').value||120);c.shifts.M.from=$('#cm1').value;c.shifts.M.to=$('#cm2').value;c.shifts.E.from=$('#ce1').value;c.shifts.E.to=$('#ce2').value;
- ['requireQR','manualOK','matrix','sound','wake'].forEach(k=>c[k]=$('#c_'+k).checked);c.officer={name:c.officer.name,wa:$('#ow').value.trim(),tg:$('#ot').value.trim(),email:$('#oe').value.trim()};c.orgKey=$('#ok').value.trim()||c.orgKey;await dbSet('cfg',c);toast('تم الحفظ');vSet()};
-ACT.testSound=()=>{unlockAudio();beep(2)};
-async function shareFile(f){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return}}catch(e){if(e.name==='AbortError')return}dl(f)}
-ACT.expTeam=async()=>{const body=JSON.stringify({cfg:S.cfg,users:S.users,ts:Date.now()});const sig=await sha(body+S.cfg.orgKey);shareFile(new File([JSON.stringify({body,sig})],'sos-guard-team.txt',{type:'text/plain'}))};
-ACT.impTeam=()=>pickFile('team');
-async function importTeam(f){let o;try{o=JSON.parse(await f.text())}catch(e){return toast('ملف غير صالح')}
- let ok=await sha(o.body+S.cfg.orgKey)===o.sig;if(!ok){const k=prompt('مفتاح المؤسسة لهذا الملف:');if(k&&await sha(o.body+k)===o.sig)ok=true}
- if(!ok)return toast('⛔ فشل التحقق من الملف');const b=JSON.parse(o.body);S.cfg=Object.assign({},DEF_CFG,b.cfg);S.users=b.users;await dbSet('cfg',S.cfg);await dbSet('users',S.users);
- S.me=S.users.find(u=>u.id===(S.me&&S.me.id))||null;if(!S.me)await dbDel('session');toast('تم تحديث إعدادات الفريق ✔');home()}
-ACT.backup=async()=>{const reps=await allReps();shareFile(new File([JSON.stringify({reps,users:S.users,cfg:S.cfg,priv:await dbGet('priv')||[]})],'sos-guard-backup-'+fmtD(Date.now())+'.txt',{type:'text/plain'}))};
-ACT.restoreB=()=>pickFile('restore');
-async function restore(f){try{const b=JSON.parse(await f.text());if(!confirm('استعادة النسخة؟'))return;for(const r of b.reps||[])await dbSet('r:'+r.no,r);if(S.me.role==='officer'||S.me.role==='supervisor'){if(b.users){S.users=b.users;await dbSet('users',b.users)}if(b.cfg){S.cfg=Object.assign({},DEF_CFG,b.cfg);await dbSet('cfg',S.cfg)}}toast('تمت الاستعادة ✔');home()}catch(e){toast('ملف غير صالح')}}
+ACT.stats=vStats;
+ACT.applyF=()=>{S.sf={from:$('#sf1').value,to:$('#sf2').value,sh:$('#sf3').value,g:$('#sf4').value};vStats()};
+ACT.seenEv=async()=>{await dbSet('seenEv',Date.now());S.newEv=0;vStats()};
+async function periodRep(days){const since=fmtD(Date.now()-days*864e5),reps=(await allReps()).filter(r=>!r.g.train&&r.g.date>=since&&(can('viewAll')||r.g.sh===S.me.shift)),txt=statsText(days===7?'التقرير الأسبوعي':'التقرير الشهري',since+' → '+fmtD(Date.now()),statsData(reps));
+ if(days===7)await dbSet('lastweekly',Date.now());try{if(navigator.share){await navigator.share({text:txt,title:'SOS Guard'});return}}catch(e){if(e.name==='AbortError')return}window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank')}
+ACT.rep7=()=>periodRep(7);ACT.rep30=()=>periodRep(30);
+ACT.enrolOk=async el=>{const e=((S.audit&&S.audit.enrols)||[]).find(x=>x.uid===el.dataset.u),u=e&&S.users.find(x=>x.id===e.uid);if(!u||u.role!=='supervisor')return;
+ if(!confirm('اعتماد مفتاح «'+u.name+'» — البصمة: '+await fpr(e.pk)+'\nتأكد أن المشرف نفسه من طلب ذلك.'))return;
+ u.pk=e.pk;u.mt=Date.now();await dbSet('users',S.users);await publish();await post({a:'enrolOk',k:S.sec.off,uid:e.uid});S.audit.enrols=S.audit.enrols.filter(x=>x!==e);toast('تم الاعتماد ✔');vStats()};
 
-/* ===== توليد PDF (رسم مباشر على Canvas — يعمل على آيفون وأندرويد) ===== */
-const loadImg=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src});
+/* ===== الإعدادات ===== */
+function userCard(u,i){const off=S.me.role==='officer',full=off||can('manageUsers'),roles=off?Object.keys(ROLE):['guard','leader'];
+ return `<div class="card" style="margin:6px 0"><div class="row2"><input id="un${i}" value="${esc(u.name)}" ${full?'':'disabled'}><input id="up${i}" placeholder="PIN جديد" inputmode="numeric" style="max-width:110px" ${full?'':'disabled'}></div>
+ <div class="row2"><select id="ur${i}" ${full?'':'disabled'}>${roles.map(k=>`<option value="${k}" ${u.role===k?'selected':''}>${ROLE[k][0]}</option>`).join('')}</select><select id="us${i}"><option value="M" ${u.shift==='M'?'selected':''}>صباحي</option><option value="E" ${u.shift==='E'?'selected':''}>مسائي</option></select><select id="uo${i}">${S.cfg.posts.map(p=>`<option value="${p.id}" ${u.post===p.id?'selected':''}>${p.ar}</option>`).join('')}</select></div>
+ ${off?`<label class="chk"><input type="checkbox" id="uf${i}" ${u.off?'checked':''}> الحساب موقوف</label>${u.role==='officer'?'':`<details><summary>الصلاحيات</summary>${Object.keys(PK).map(k=>`<label class="chk"><input type="checkbox" id="pm${i}${k}" ${can(k,u)?'checked':''}> ${PK[k]}</label>`).join('')}</details>`}${u.role==='supervisor'?(u.pk?'<div class="mut">✔ مفتاح المشرف معتمد</div>':'<div class="mut">⏳ بانتظار اعتماد مفتاحه (في 📊 عند أول دخول له)</div>'):''}${u.role!=='officer'?`<button class="btn red sm" data-act="delU" data-i="${i}">حذف</button>`:''}`:''}</div>`}
+async function collectUsers(){const offi=S.me.role==='officer',full=offi||can('manageUsers'),lines=[],strip=x=>JSON.stringify(Object.assign({},x,{mt:0}));
+ for(let i=0;i<S.users.length;i++){const u=S.users[i];if(!$('#un'+i))continue;const o=clone(u);
+  if(full){u.name=$('#un'+i).value.trim()||u.name;const p=$('#up'+i).value.trim();if(p){if(p.length<4){toast('PIN: 4 خانات على الأقل');continue}await setPin(u,p)}
+   const rs=$('#ur'+i).value;if(offi||['guard','leader'].includes(rs))u.role=rs;if(u.role!==o.role)u.perms=undefined}
+  u.shift=$('#us'+i).value;u.post=$('#uo'+i).value;
+  if(offi&&$('#uf'+i)){u.off=$('#uf'+i).checked;if(u.role!=='officer'&&$('#pm'+i+'stats')&&u.role===o.role){const pm={};Object.keys(PK).forEach(k=>{pm[k]=$('#pm'+i+k).checked});u.perms=pm}}
+  if(strip(o)!==strip(u)){u.mt=Date.now();const t=[];['name','role','shift','post','off'].forEach(f=>{if(o[f]!==u[f])t.push(f+': '+o[f]+'→'+u[f])});if(o.ph!==u.ph)t.push('PIN');if(JSON.stringify(o.perms)!==JSON.stringify(u.perms))t.push('الصلاحيات');lines.push(u.name+' ('+t.join('، ')+')')}}
+ return lines}
+async function vSet(){S.screen='set';const r=S.me.role,c=S.cfg,off=r==='officer',mu=can('manageUsers'),as=can('assign'),sg=can('settings');
+ let h='<button class="btn sm" data-act="home">← رجوع</button>';
+ if(off||mu||as){const list=S.users.map((u,i)=>[u,i]).filter(([u])=>off||['guard','leader'].includes(u.role));
+  h+=`<div class="card"><h3>المستخدمون والتوزيع</h3><div class="mut">الاسم · PIN جديد · الدور · الشفت · الموقع</div>${list.map(([u,i])=>userCard(u,i)).join('')}${off||mu?'<button class="btn" data-act="addUser">+ إضافة مستخدم</button>':''}<button class="btn pri" data-act="saveUsers">حفظ${off?' ونشر':''}</button></div>`}
+ if(off||as)h+=`<div class="card"><h3>المهام الإضافية للحراس</h3><div class="mut">مهمة في كل سطر (مثل: فحص الإنارة). تظهر للحارس كقائمة تأشير.</div><textarea id="tk">${esc((c.tasks||[]).map(t=>t.t).join('\n'))}</textarea><button class="btn pri" data-act="saveTasks">حفظ المهام</button></div>`;
+ if(off||sg)h+=`<div class="card"><h3>الإعدادات العامة</h3><label>فترة الجولة (دقيقة)</label><input id="ci" type="number" value="${c.interval}"><label>الصباحي: من / إلى</label><div class="row2"><input id="cm1" value="${c.shifts.M.from}"><input id="cm2" value="${c.shifts.M.to}"></div><label>المسائي: من / إلى</label><div class="row2"><input id="ce1" value="${c.shifts.E.from}"><input id="ce2" value="${c.shifts.E.to}"></div>
+ ${[['requireQR','إلزام مسح QR'],['manualOK','السماح بالتأكيد اليدوي']].concat(off?[['matrix','خلفية Matrix'],['sound','الصوت'],['wake','إبقاء الشاشة مضاءة']]:[]).map(([k,l])=>`<label class="chk"><input type="checkbox" id="c_${k}" ${c[k]?'checked':''}> ${l}</label>`).join('')}<button class="btn pri" data-act="saveCfg">حفظ الإعدادات</button></div>`;
+ if(off){const fp=c.pub?await fpr(c.pub):'—';h+=`<div class="card"><h3>قنوات الأوفيسر والتنبيهات</h3><div class="mut">هذه الحقول تُحفظ على جوالك فقط وعلى سكربت Google، ولا تصل لجوالات الحراس.</div>
+ <label>رابط سكربت Google (Web app URL)</label><input id="cu" dir="ltr" value="${esc(c.url)}"><label>سر الأوفيسر OFFKEY (نفس القيمة في السكربت)</label><input id="of" type="password" dir="ltr" value="${esc(S.sec.off)}"><label>مفتاح المؤسسة (نفسه في السكربت)</label><input id="ok" dir="ltr" value="${esc(c.orgKey)}">
+ <label>واتساب (بصيغة دولية)</label><input id="ow" dir="ltr" value="${esc(c.officer.wa)}"><label>الإيميل (للتنبيهات والتقارير)</label><input id="oe" dir="ltr" value="${esc(S.sec.email)}"><label>Token بوت تلجرام</label><input id="ot" dir="ltr" value="${esc(S.sec.tgToken)}"><label>Chat ID تلجرام</label><input id="oc" dir="ltr" value="${esc(S.sec.tgChat)}">
+ <button class="btn pri" data-act="saveCh">حفظ ونشر</button><button class="btn" data-act="tgFind">🔎 اكتشاف Chat ID تلقائياً</button><button class="btn" data-act="tgTest">🔔 اختبار التنبيه</button><div class="mut">بصمة مفتاحك: <b dir="ltr">${fp}</b></div></div>`}
+ h+=`<div class="card"><h3>أدوات</h3>${off?'<button class="btn" data-act="expTeam">📤 تصدير إعدادات الفريق الموقّعة (للجوالات)</button><button class="btn" data-act="keyBk">🔐 نسخة احتياطية مشفّرة للمفتاح</button>':''}<button class="btn" data-act="impTeam">📥 استيراد إعدادات الفريق</button><button class="btn" data-act="backup">💾 نسخة احتياطية</button><button class="btn" data-act="restoreB">♻ استعادة نسخة</button><button class="btn" data-act="testSound">🔔 اختبار الصوت</button><button class="btn" data-act="trainT">🎓 وضع التدريب: ${S.train?'مفعّل (اضغط للإيقاف)':'متوقف (اضغط للتفعيل)'}</button></div>`;
+ if(off||as){h+=`<div class="card"><h3>رموز QR للمواقع</h3><div class="qrs">${c.posts.map(p=>`<div><img src="${qrImg('SOS|'+p.id)}" alt="QR"><br>${p.ar}<br><small>SOS|${p.id}</small></div>`).join('')}</div><div class="mut">اطبعها وألصقها في كل موقع.</div></div>`}
+ if(off){const pl=(await dbGet('priv'))||[];h+=`<div class="card"><h3>سجلّك الخاص</h3><div class="mut">لا يراه أحد غيرك.</div><button class="btn sm" data-act="togglePriv">${S.priv_?'إخفاء':'إظهار'}</button>${S.priv_?pl.slice().reverse().map(x=>`<div class="item"><span>${x.rep}<br><small class="mut">${esc(x.k)}: ${esc(x.old)} ← ${esc(x.nv)}<br>${fmtD(x.t)} ${fmtT(x.t)}</small></span></div>`).join('')||'<div class="mut">فارغ</div>':''}</div>`}
+ V(h)}
+ACT.settings=vSet;ACT.togglePriv=()=>{S.priv_=!S.priv_;vSet()};
+async function afterChange(txt){if(S.me.role==='officer')await publish();else{await pubSup();ev('change','المشرف '+S.me.name+' '+txt)}}
+ACT.saveUsers=async()=>{const lines=await collectUsers();await dbSet('users',S.users);await afterChange('عدّل المستخدمين: '+(lines.join(' | ')||'—'));toast('تم الحفظ');vSet()};
+ACT.addUser=async()=>{await collectUsers();const u={id:'U'+Date.now().toString(36),name:'مستخدم جديد',role:'guard',shift:'M',post:S.cfg.posts[0].id};await setPin(u,'1234');S.users.push(u);await dbSet('users',S.users);await afterChange('أضاف مستخدماً جديداً');vSet()};
+ACT.delU=async el=>{if(S.me.role!=='officer')return;if(!confirm('حذف هذا الحساب؟'))return;await collectUsers();const u=S.users[+el.dataset.i];if(!u||u.role==='officer')return;S.users.splice(+el.dataset.i,1);await dbSet('users',S.users);await publish();vSet()};
+ACT.saveTasks=async()=>{const lines=$('#tk').value.split('\n').map(x=>x.trim()).filter(Boolean),t=[];for(const x of lines)t.push({id:(await sha(x)).slice(0,6),t:x});S.cfg.tasks=t;S.cfg.tasksTs=Date.now();await dbSet('cfg',S.cfg);await afterChange('حدّث قائمة المهام ('+t.length+')');toast('تم الحفظ');vSet()};
+ACT.saveCfg=async()=>{const c=S.cfg;c.interval=Math.max(5,+$('#ci').value||120);c.shifts.M.from=$('#cm1').value;c.shifts.M.to=$('#cm2').value;c.shifts.E.from=$('#ce1').value;c.shifts.E.to=$('#ce2').value;
+ ['requireQR','manualOK','matrix','sound','wake'].forEach(k=>{if($('#c_'+k))c[k]=$('#c_'+k).checked});c.cfgTs=Date.now();await dbSet('cfg',c);await afterChange('عدّل الإعدادات العامة');toast('تم الحفظ');vSet()};
+ACT.saveCh=async()=>{const c=S.cfg;c.url=$('#cu').value.trim();c.orgKey=$('#ok').value.trim()||c.orgKey;c.officer.wa=$('#ow').value.trim();c.cfgTs=Date.now();
+ S.sec={off:$('#of').value.trim(),tgToken:$('#ot').value.trim(),tgChat:$('#oc').value.trim(),email:$('#oe').value.trim()};await dbSet('cfg',c);await dbSet('sec',S.sec);await publish();
+ const j=await post({a:'offcfg',k:S.sec.off,tgToken:S.sec.tgToken,tgChat:S.sec.tgChat,email:S.sec.email});toast(j&&j.ok?'تم الحفظ والنشر ✔':'تم الحفظ محلياً — تعذّر الاتصال بالسكربت (تحقق من الرابط والسر والإنترنت)',5000);vSet()};
+ACT.tgFind=async()=>{const t=$('#ot').value.trim();if(!t)return toast('ضع Token أولاً');S.cfg.url=$('#cu').value.trim();S.sec.off=$('#of').value.trim();
+ const j=await post({a:'tgfind',k:S.sec.off,tgToken:t});if(j&&j.chat){$('#oc').value=j.chat;toast('تم: '+j.chat+' — اضغط حفظ ونشر')}else toast('لم أجد رسالة. أرسل أي رسالة للبوت في تلجرام ثم أعد المحاولة',5000)};
+ACT.tgTest=async()=>{S.cfg.url=$('#cu').value.trim();S.sec.off=$('#of').value.trim();const j=await post({a:'test',k:S.sec.off});toast(j&&j.ok?'أُرسل اختبار — راجع تلجرام والإيميل':'فشل: تحقق من الرابط والسر',4000)};
+ACT.testSound=()=>{unlockAudio();beep(2)};
+ACT.trainT=async()=>{S.train=!S.train;await dbSet('train',S.train);S.bn.tr=S.train?'🎓 وضع التدريب مفعّل — التقارير لا تُحتسب':'';renderBanner();vSet()};
+async function shareFile(f){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return}}catch(e){if(e.name==='AbortError')return}dl(f)}
+ACT.expTeam=async()=>{const pkg=await publish();if(!pkg)return toast('لا يوجد مفتاح على هذا الجهاز');toast('بصمة مفتاحك: '+await fpr(S.cfg.pub)+' — أخبر بها الفريق',6000);shareFile(new File([JSON.stringify(pkg)],'sos-guard-team.txt',{type:'text/plain'}))};
+ACT.impTeam=()=>pickFile('team');
+async function importTeam(f){let o,b;try{o=JSON.parse(await f.text());b=JSON.parse(o.body)}catch(e){return toast('ملف غير صالح')}
+ if(S.priv)return toast('هذا جهاز الأوفيسر — لا يستورد إعدادات');
+ if(!S.cfg.pub){if(!b.pub||!await verS(o.body,o.sig,b.pub))return tamper('ملف إعدادات غير موقّع');if(!confirm('بصمة مفتاح الأوفيسر: '+await fpr(b.pub)+'\nتأكد أنها مطابقة لما أرسله لك الأوفيسر. متابعة؟'))return}
+ if(!await applyPkg(o,false))return toast('تعذّر قبول الملف (قديم أو غير موقّع)',4000);
+ S.me=S.me?S.users.find(u=>u.id===S.me.id&&!u.off)||null:null;if(!S.me)await dbDel('session');toast('تم تحديث إعدادات الفريق ✔');home()}
+ACT.keyBk=async()=>{const pw=prompt('كلمة سر النسخة الاحتياطية (6 أحرف فأكثر):');if(!pw||pw.length<6)return toast('كلمة السر قصيرة');await keyBackup(S.priv,pw)};
+ACT.restKey=()=>pickFile('key');
+async function restKey(f){try{const o=JSON.parse(await f.text()),pw=prompt('كلمة سر النسخة الاحتياطية:');if(!pw)return;const k=await aesKey(pw,unb64(o.s)),j=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(o.i)},k,unb64(o.c))));
+ if(S.cfg.pub&&S.cfg.pub.x!==j.x)return toast('هذا المفتاح لا يطابق مفتاح الأوفيسر المعتمد',4500);await dbSet('offkey',j);if(!S.cfg.pub){S.cfg.pub=pubOf(j);await dbSet('cfg',S.cfg)}toast('تمت استعادة المفتاح ✔ — ادخل كأوفيسر',4500)}catch(e){toast('فشلت الاستعادة: كلمة السر أو الملف غير صحيح',4500)}}
+ACT.backup=async()=>{const reps=await allReps();await shareFile(new File([JSON.stringify({reps,users:S.users,cfg:S.cfg,priv:(await dbGet('priv'))||[]})],'sos-guard-backup-'+fmtD(Date.now())+'.txt',{type:'text/plain'}));await dbSet('lastbk',Date.now())};
+ACT.restoreB=()=>pickFile('restore');
+async function restore(f){try{const b=JSON.parse(await f.text());if(!confirm('استعادة النسخة؟'))return;for(const r of b.reps||[])await dbSet('r:'+r.no,r);if(S.me.role==='officer'){if(b.users){S.users=b.users;await dbSet('users',b.users)}if(b.cfg){S.cfg=Object.assign({},DEF_CFG,b.cfg);await dbSet('cfg',S.cfg)}}toast('تمت الاستعادة ✔');home()}catch(e){toast('ملف غير صالح')}}
+
+/* ===== توليد PDF (رسم مباشر على Canvas — آيفون وأندرويد) ===== */
 async function makePDF(rep){
  const E=eff(rep),g=E.g,post=postOf(g.post),sh=shOf(g.sh),W=794,H=1123,SC=2,M=40,pages=[];let cx,y,ri=0;
  const logo=await loadImg('logo.png').catch(()=>null);const isAr=s=>/[\u0600-\u06FF]/.test(s);
@@ -302,7 +483,10 @@ async function makePDF(rep){
  np();
  if(logo)cx.drawImage(logo,W-M-70,y,70,70);
  T('تقرير مناوبة حارس',W-M-82,y+4,{b:1,s:24,c:'#0a1a33',dir:'rtl'});T('Guard Shift Report',W-M-82,y+36,{s:15,c:'#335',dir:'ltr',a:'right'});
- T(rep.no,M,y+4,{b:1,s:15,dir:'ltr',c:'#0a2a44'});T(g.date,M,y+28,{s:13,dir:'ltr',c:'#555'});y+=84;
+ if(window.qrcode){try{const sid=S.cfg.url?'&s='+encodeURIComponent(scriptId(S.cfg.url)):'';qrDraw(cx,location.origin+location.pathname+'?v='+rep.no+'.'+rep.seal.slice(0,16)+sid,M+4,y+2,92)}catch(e){}}
+ T(rep.no,M+112,y+8,{b:1,s:15,dir:'ltr',c:'#0a2a44'});T(g.date,M+112,y+32,{s:13,dir:'ltr',c:'#555'});T('Scan QR to verify',M+112,y+54,{s:10,dir:'ltr',c:'#888'});
+ if(g.train)T('تدريب · TRAINING',W/2,y+80,{b:1,s:16,c:'#c0182a',a:'center',dir:'rtl'});
+ y+=112;
  const lvE=(E.review&&E.review.level)||g.level;cx.fillStyle=LV[lvE][2];cx.fillRect(M,y,W-2*M,6);y+=14;
  sec('ملخص المناوبة','Shift Summary');
  row('الحارس','Guard',g.guardName);row('الموقع','Post',post.ar+' / '+post.en);row('الشفت','Shift',sh.ar+' / '+sh.en);row('التاريخ','Date',g.date);row('الوقت','Time',fmtT(g.start)+' - '+fmtT(g.end));
@@ -310,18 +494,20 @@ async function makePDF(rep){
  const ni=g.rounds.filter(x=>x.net&&x.net.avail&&x.net.q!=='slow').length;row('جودة الإنترنت','Good internet',ni+' / '+g.rounds.length);
  row('الحوادث','Incidents',String(g.incidents.length));row('الحالة العامة','Overall status',LV[lvE][0]+' / '+LV[lvE][1],LV[lvE][2]);
  y+=8;sec('جولات التفقد','Check Rounds');
- const cols=[['#','#',40],['الوقت · Time','',100],['الحالة · Status','',110],['التحقق · Verify','',100],['الإنترنت · Internet','',200],['الموقع · GPS','',164]];
- const trow=(vals,hd)=>{need(24);if(hd){cx.fillStyle='#e6eef5';cx.fillRect(M,y,W-2*M,22)}let x=W-M;vals.forEach((v,i)=>{const w=cols[i][2];T(v,x-w/2,y+4,{a:'center',s:11,b:hd,dir:'ltr',c:'#111'});x-=w});cx.strokeStyle='#d5dee6';cx.beginPath();cx.moveTo(M,y+22);cx.lineTo(W-M,y+22);cx.stroke();y+=22};
+ const cols=[['#',40],['الوقت · Time',100],['الحالة · Status',110],['التحقق · Verify',100],['الإنترنت · Internet',200],['الموقع · GPS',164]];
+ const trow=(vals,hd)=>{need(24);if(hd){cx.fillStyle='#e6eef5';cx.fillRect(M,y,W-2*M,22)}let x=W-M;vals.forEach((v,i)=>{const w=cols[i][1];T(v,x-w/2,y+4,{a:'center',s:11,b:hd,dir:'ltr',c:'#111'});x-=w});cx.strokeStyle='#d5dee6';cx.beginPath();cx.moveTo(M,y+22);cx.lineTo(W-M,y+22);cx.stroke();y+=22};
  trow(cols.map(c=>c[0]),1);
  g.rounds.forEach((r,i)=>trow([String(i+1),fmtT(r.t),r.late?'متأخرة · Late':'بالوقت · On time',r.method==='scan'?'QR':'يدوي · Manual',r.net&&r.net.avail?NETQ[r.net.q][0]+' · '+NETQ[r.net.q][1]+(r.net.mbps?' (~'+r.net.mbps+' Mbps)':''):'غير متوفر · None',r.gps?r.gps.lat+','+r.gps.lon:'—']));
  if(!g.rounds.length)line('لا توجد جولات مسجلة · No rounds recorded',{s:12,c:'#a00'});
  y+=10;sec('الحوادث','Incidents');
  if(!g.incidents.length)line('لا حوادث · No incidents',{s:12});
- g.incidents.forEach((x,i)=>row('حادث '+(i+1),'Incident '+(i+1),fmtT(x.t)+' · '+x.ar+' / '+x.en+' · '+(x.lv==='r'?'🔴 عالية/High':'متوسطة/Medium')+(x.details?' — '+x.details:''),x.lv==='r'?'#c0182a':'#111'));
+ for(let i=0;i<g.incidents.length;i++){const x=g.incidents[i];row('حادث '+(i+1),'Incident '+(i+1),fmtT(x.t)+' · '+x.ar+' / '+x.en+' · '+(x.lv==='r'?'🔴 عالية/High':'متوسطة/Medium')+(x.details?' — '+x.details:''),x.lv==='r'?'#c0182a':'#111');
+  if(x.ph){try{const im=await loadImg(x.ph),w=200,h=Math.min(160,im.height*w/im.width);need(h+8);cx.drawImage(im,W/2-w/2,y+2,w,h);y+=h+8}catch(e){}}}
  y+=10;sec('مساعدة الموظفين','Staff Assistance');
  row('هل قُدّمت مساعدة؟','Assistance given?',g.assist.yes?'نعم / Yes':'لا / No');
  if(g.assist.yes){row('نوع المساعدة','Type',g.assist.type);if(g.assist.who)row('الموظف / القسم','Staff / Dept',g.assist.who);if(g.assist.details)row('التفاصيل','Details',g.assist.details)}
  y+=4;line('Staff assistance: '+(g.assist.yes?'Yes — '+g.assist.type+(g.assist.details?' — '+g.assist.details:''):'No'),{dir:'ltr',b:1,s:12,c:'#0a2a44'});
+ if((g.tasks||[]).length){y+=8;sec('المهام الإضافية','Assigned Tasks');g.tasks.forEach(t=>row(t.done?'✔ منجزة':'✘ غير منجزة',t.done?'Done':'Not done',t.t,t.done?'#0a7a3a':'#c0182a'))}
  y+=8;sec('التسليم والملاحظات','Handover & Notes');row('تسليم الشفت','Shift handover',g.handover);row('ملاحظات','Notes',g.notes);
  if(E.review){y+=8;sec('مراجعة قائد الشفت','Shift Leader Review');row('النتيجة','Result',RES[E.review.result][0]+' / '+RES[E.review.result][1]);row('المستوى','Level',LV[E.review.level][0]+' / '+LV[E.review.level][1],LV[E.review.level][2]);row('الملاحظات','Remarks',E.review.remarks);row('الإجراء','Action',E.review.action);row('بواسطة','By',E.review.by)}
  const vis=(rep.amends||[]).filter(a=>!a.hidden);
@@ -333,7 +519,7 @@ async function makePDF(rep){
   T('هذه الأداة صممت لقسم الأمن SOS — تصميم Ahmed Abu Jami',W/2,H-56,{a:'center',s:11,c:'#335',dir:'rtl'});T("saftey and security officer - SOS children's villages",W/2,H-40,{a:'center',s:10,c:'#335',dir:'ltr'});T(`${rep.no} · ${i+1}/${pages.length}`,W/2,H-24,{a:'center',s:10,c:'#777',dir:'ltr'})});
  const jp=pages.map(c=>{const b=atob(c.toDataURL('image/jpeg',.85).split(',')[1]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return{bytes:u,w:c.width,h:c.height}});
  return buildPDF(jp)}
-function buildPDF(jp){const enc=new TextEncoder(),parts=[],offs=[];let len=0;const push=d=>{const b=typeof d==='string'?enc.encode(d):d;parts.push(b);len+=b.length};
+function buildPDF(jp){const enc2=new TextEncoder(),parts=[],offs=[];let len=0;const push=d=>{const b=typeof d==='string'?enc2.encode(d):d;parts.push(b);len+=b.length};
  push('%PDF-1.4\n');const n=jp.length,kids=jp.map((_,i)=>`${3+i*3} 0 R`).join(' ');
  offs[1]=len;push('1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n');offs[2]=len;push(`2 0 obj<</Type/Pages/Kids[${kids}]/Count ${n}>>endobj\n`);
  jp.forEach((j,i)=>{const p=3+i*3,c=p+1,im=p+2,cs='q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
