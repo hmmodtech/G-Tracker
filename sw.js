@@ -1,4 +1,4 @@
-const V='sos-guard-v6';
+const V='sos-guard-v7';
 const FILES=['./','index.html','style.css','app.js','sync.js','manifest.json','logo.png','icon.svg','jsQR.js'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(V).then(c=>Promise.all(FILES.map(f=>c.add(new Request(f,{cache:'reload'})).catch(()=>{}))))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==V).map(x=>caches.delete(x)))).then(()=>self.clients.claim())));
