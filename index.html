@@ -1,40 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050b1a">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="logo.png">
+<meta name="theme-color" content="#050b18">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="SOS Guard">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
 <title>SOS Guard</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="rain"></canvas>
-<div id="app">
-  <header>
-    <img src="logo.png" alt="SOS" onerror="this.onerror=null;this.src='icon.svg'">
-    <div class="ht"><b>SOS Guard</b><small>نظام تقارير الأمن</small></div>
-    <div id="who"></div>
-  </header>
-  <div id="banner"></div>
-  <main id="view"></main>
-  <footer>
-    هذه الأداة صممت لقسم الأمن SOS<br>
-    تصميم Ahmed Abu Jami<br>
-    <span dir="ltr">saftey and security officer - SOS children's villages</span>
-  </footer>
-</div>
-<div id="toast"></div>
-<input type="file" id="fi" hidden>
+<div id="banner" hidden></div>
+<div id="view"></div>
+<div id="toast" hidden></div>
+<input type="file" id="fi" hidden multiple accept=".txt,.json,text/plain,application/json">
 <script>
-window.onerror=function(m,s,l,c){var d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#a00;color:#fff;padding:8px;font:12px monospace;direction:ltr;white-space:pre-wrap';d.textContent=m+'\n'+(s||'').split('/').pop()+' line '+l+':'+c;document.body.appendChild(d)};
+function _err(m){var d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;right:0;background:#c00;color:#fff;padding:6px;z-index:9999;font:12px monospace;direction:ltr';d.textContent=m;document.body.appendChild(d)}
+window.onerror=function(m,s,l){_err(m+' @'+(s||'').split('/').pop()+':'+l)};
+window.onunhandledrejection=function(e){_err('Promise: '+(e.reason&&e.reason.message||e.reason))};
 </script>
+<script src="jsQR.js"></script>
 <script src="app.js"></script>
-<script src="sync.js"></script>
 </body>
 </html>
