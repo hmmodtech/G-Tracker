@@ -8,7 +8,6 @@ const fDT=t=>fD(t)+' '+fT(t);
 const toast=(m,ms=2500)=>{const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,ms)};
 const rv=n=>{const r=$(`input[name="${n}"]:checked`);return r?r.value:''};
 const gv=id=>{const e=$('#'+id);return e?e.value:''};
-
 /* ---------- DB ---------- */
 let _db;
 const dbo=()=>_db||(_db=new Promise((res,rej)=>{const q=indexedDB.open('sosg5',1);q.onupgradeneeded=()=>q.result.createObjectStore('kv');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}));
@@ -18,13 +17,13 @@ const dbSet=(k,v)=>tx('readwrite',s=>s.put(v,k));
 const dbDel=k=>tx('readwrite',s=>s.delete(k));
 const dbAll=async p=>{const d=await dbo();return new Promise(res=>{const o=[];const q=d.transaction('kv').objectStore('kv').openCursor();q.onsuccess=()=>{const c=q.result;if(!c){res(o);return}if(String(c.key).startsWith(p))o.push(c.value);c.continue()}})};
 const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,'0')).join('');
-
 /* ---------- constants ---------- */
 const POSTS={GATE:{ar:'البوابة',en:'Main Gate'},BLDG:{ar:'بجوار المبنى',en:'Beside the Building'}};
 const SH={M:{ar:'صباحية',en:'Morning',from:7,to:15},E:{ar:'مسائية',en:'Evening',from:15,to:23}};
 const ROLES={guard:['حارس','Guard'],leader:['قائد شفت','Shift Leader'],supervisor:['مشرف','Supervisor'],officer:['أوفيسر','Officer']};
 const ST={n:['عادي','Normal','g'],y:['تنبيه / ملاحظة','Observation','y'],r:['حادث أمني / طارئ','Incident','r']};
 const PWN={grid:['كهرباء الشبكة','Grid'],gen:['مولد','Generator'],sol:['طاقة شمسية','Solar'],none:['لا توجد طاقة','No power']};
+const NET={w:['ضعيف','Weak','y'],g:['جيد','Good','g'],e:['ممتاز','Excellent','g']};
 const STG={guard:'عند الحارس',sent_leader:'أُرسل للقائد',at_leader:'عند القائد',reviewed:'راجعه القائد',sent_sup:'أُرسل للمشرف',at_sup:'عند المشرف',sent_off:'أُرسل للأوفيسر',final:'عند الأوفيسر ✔'};
 const RK=Object.keys(STG),TO={sent_leader:'القائد',sent_sup:'المشرف',sent_off:'الأوفيسر'};
 const INC=[['محاولة اقتحام / تسلل','Intrusion attempt','r'],['شخص مشبوه','Suspicious person','y'],['إصابة / حالة طبية','Injury / medical case','r'],['حريق / دخان','Fire / smoke','r'],['قصف / إطلاق نار قريب','Shelling / gunfire nearby','r'],['انقطاع الكهرباء','Power outage','y'],['عطل فني','Technical fault','y'],['اقتراب أشخاص من السور','People near the fence','y'],['أخرى','Other','y']];
@@ -42,20 +41,19 @@ const IL=[['sup','الإشراف والتوزيع','Team Supervision','هل قا
  ['sit','الإلمام بالوضع الأمني','Situational Awareness','هل القائد على دراية بعدد الموظفين/الزوار داخل الموقع وبخطة الإخلاء الطارئ؟']];
 const AL={g:['يقظ ومنتبه تماماً','Fully Alert & Vigilant'],y:['تشتت جزئي (هاتف/حديث جانبي)','Distracted'],r:['نائم أو غائب عن النقطة','Sleeping / Off-Post']};
 const OV={4:['ممتاز','Excellent','g'],3:['جيد','Good','g'],2:['يحتاج تحسين','Needs Improvement','y'],1:['غير مقبول','Unacceptable','r']};
-const LB={'perim.ok':'الأسوار والمداخل','perim.n':'تفاصيل الأسوار','light.ok':'الإضاءة','light.n':'تفاصيل الإضاءة','safety.ok':'معدات السلامة','safety.n':'تفاصيل السلامة','comm.batt':'شحن جهاز الاتصال','comm.pwr':'مصدر الطاقة','comm.solar':'شحن الطاقة الشمسية','access.done':'تسجيل الزوار','access.vis':'عدد الزوار','access.veh':'عدد المركبات','status':'الوضع الأمني','ev.time':'وقت الحدث','ev.desc':'وصف الحدث','hand.done':'تسليم العهدة','hand.to':'المستلم','assist.yes':'مساعدة الموظفين','assist.type':'نوع المساعدة','assist.staff':'الموظف/القسم','assist.det':'تفاصيل المساعدة','notes':'الملاحظات','rev.note':'ملاحظة القائد'};
+const LB={'perim.ok':'الأسوار والمداخل','perim.n':'تفاصيل الأسوار','light.ok':'الإضاءة','light.n':'تفاصيل الإضاءة','safety.ok':'معدات السلامة','safety.n':'تفاصيل السلامة','comm.net':'جودة الاتصال بالإنترنت','comm.pwr':'مصدر الطاقة','comm.solar':'شحن الطاقة الشمسية','access.done':'تسجيل الزوار','access.vis':'عدد الزوار','access.veh':'عدد المركبات','status':'الوضع الأمني','ev.time':'وقت الحدث','ev.desc':'وصف الحدث','hand.done':'تسليم العهدة','hand.to':'المستلم','assist.yes':'مساعدة الموظفين','assist.type':'نوع المساعدة','assist.staff':'الموظف/القسم','assist.det':'تفاصيل المساعدة','notes':'الملاحظات','rev.note':'ملاحظة القائد'};
 const FOOT='<div class="foot">هذه الأداة صممت لقسم الأمن SOS<br>تصميم Ahmed Abu Jami<br>saftey and security officer - SOS children\'s villages</div>';
 const BK='<button class="b s k" data-a="home">← رجوع</button>',BS='<button class="b s k" data-a="shift">← رجوع للمناوبة</button>';
 const pn=p=>POSTS[p]?POSTS[p].ar+' · '+POSTS[p].en:p,shn=s=>SH[s].ar+' · '+SH[s].en,YNT=v=>v==1?'نعم · Yes':'لا · No';
-
 /* ---------- state ---------- */
-let CFG,USERS,ME=null,SHIFT=null,INS=null,PH={},PRE={},TICK=0;
+let CFG,USERS,ME=null,SHIFT=null,INS=null,PH={},PRE={},TICK=0,SP=30;
 const V={},ACT={};
 const user=id=>USERS.find(u=>u.id===id);
 const persist=async()=>{CFG.ts=now();await dbSet('users',USERS);await dbSet('cfg',CFG)};
-const plog=async txt=>{const k=ME.role==='officer'?'priv':'alog';const a=(await dbGet(k))||[];a.push({at:now(),by:ME.name,txt});await dbSet(k,a.slice(-300))};
+const plog=async txt=>{const k=ME.role==='officer'?'priv':'alog';const a=(await dbGet(k))||[];a.push({at:now(),by:ME.name,txt});await dbSet(k,a.slice(-300));if(ME.role!=='officer')notify('🔔 تغيير من '+ROLES[ME.role][0],txt)};
 async function seed(){
  CFG=await dbGet('cfg');
- if(!CFG){CFG={orgKey:'SOSG-2025-KEY',wa:'970567144224',email:'',round:120,ts:0,sites:['البوابة الرئيسية|Main Gate','بجوار المبنى|Beside the Building','منطقة الأمهات|Mothers Area','المخازن|Warehouses']};await dbSet('cfg',CFG)}
+ if(!CFG){CFG={orgKey:'SOSG-2025-KEY',wa:'970567144224',email:'',gs:'',tg:'',round:120,ts:0,sites:['البوابة الرئيسية|Main Gate','بجوار المبنى|Beside the Building','منطقة الأمهات|Mothers Area','المخازن|Warehouses']};await dbSet('cfg',CFG)}
  USERS=await dbGet('users');
  if(!USERS){const h=p=>sha(p+CFG.orgKey);USERS=[];
   for(let i=1;i<=9;i++)USERS.push({id:'G'+i,name:'حارس '+i,role:'guard',pin:await h('1234'),post:i%2?'GATE':'BLDG',sh:i%2?'M':'E'});
@@ -65,7 +63,18 @@ async function seed(){
    {id:'O1',name:'الأوفيسر',role:'officer',pin:await h('9999'),post:'GATE',sh:'M'});
   await dbSet('users',USERS)}
 }
-
+/* ---------- alerts: Google Script -> Telegram + Email ---------- */
+const b64=b=>new Promise(r=>{const f=new FileReader();f.onload=()=>r(String(f.result).split(',')[1]);f.readAsDataURL(b)});
+async function postGS(o){const r=await fetch(CFG.gs,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:CFG.orgKey,chat:CFG.tg||'',email:CFG.email||'',...o})});const j=await r.json();if(!j.ok)throw new Error(j.err||'خطأ');return j}
+let FL=0;
+async function flush(){if(FL||!CFG||!CFG.gs||!navigator.onLine)return;FL=1;
+ try{const l=(await dbAll('ob:')).sort((a,b)=>a.t-b.t);for(const it of l){try{await postGS({title:it.title,text:it.text,pdf:it.pdf,name:it.name})}catch(e){break}await dbDel('ob:'+it.id)}}catch(e){}
+ FL=0}
+async function notify(title,text,pdf,name){if(!CFG||!CFG.gs)return;const id=now()+'_'+Math.floor(Math.random()*1000);
+ const by=ME?'\nBy: '+ME.name+' ('+ROLES[ME.role][1]+')':'';
+ await dbSet('ob:'+id,{id,t:now(),title,text:text+by,pdf:pdf?await b64(pdf):'',name:name||''});return flush()}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+setInterval(flush,60000);addEventListener('online',flush);
 /* ---------- ui core ---------- */
 function cond(){$$('[data-if]').forEach(e=>{const[n,v]=e.dataset.if.split('=');const r=$(`input[name="${n}"]:checked`);e.hidden=!(r&&v.split(',').includes(r.value))})}
 const view=h=>{$('#view').innerHTML=h+FOOT;cond()};
@@ -91,7 +100,6 @@ async function shareOut(files,text){
 async function pack(o,name){const d=JSON.stringify(o);const s=await sha(d+CFG.orgKey);return new File([JSON.stringify({d,s})],name,{type:'text/plain'})}
 async function unpack(f){let t;try{t=JSON.parse(await f.text());if(!t.d||!t.s)throw 0}catch(e){throw new Error('ملف غير صالح')}
  if(await sha(t.d+CFG.orgKey)!==t.s)throw new Error('الملف معدّل أو من جهة أخرى');return JSON.parse(t.d)}
-
 /* ---------- QR scan ---------- */
 function scan(post,cb){
  const want='SOS|'+post;let st,iv,done=0;
@@ -111,7 +119,6 @@ function scan(post,cb){
    busy=0;if(t){if(t.trim()===want)end({manual:false});else toast('هذا QR لموقع آخر: '+t,1500)}},300);
  }).catch(()=>toast('تعذر فتح الكاميرا — استخدم التأكيد اليدوي'));
 }
-
 /* ---------- login ---------- */
 V.login=()=>view(`<img class="lg" src="icon.svg" alt="SOS" onerror="this.onerror=null;this.style.display='none'"><div class="card c"><h3>SOS Guard — تسجيل الدخول</h3><select id="lu">${USERS.map(u=>`<option value="${u.id}">${esc(u.name)} — ${ROLES[u.role][0]}</option>`).join('')}</select><input id="lp" type="password" inputmode="numeric" placeholder="الرقم السري PIN" style="margin-top:8px"><button class="b big" data-a="login">دخول</button></div>`);
 ACT.login=async()=>{const u=user(gv('lu')),pin=gv('lp'),lk=JSON.parse(localStorage.lk||'{}');
@@ -120,9 +127,8 @@ ACT.login=async()=>{const u=user(gv('lu')),pin=gv('lp'),lk=JSON.parse(localStora
  else{lk.n=(lk.n||0)+1;if(lk.n>=5){lk.until=now()+300000;lk.n=0}localStorage.lk=JSON.stringify(lk);toast('الرقم السري غير صحيح')}};
 ACT.logout=async()=>{ME=null;SHIFT=null;await dbDel('session');go('login')};
 ACT.home=()=>go('home');ACT.shift=()=>go('shift');ACT.start=()=>go('start');ACT.incf=()=>go('incf');ACT.endq=()=>go('end');
-ACT.insp=()=>go('insp');ACT.inl=()=>go('inl');ACT.mgr=()=>go('mgr');ACT.set=()=>go('set');
+ACT.insp=()=>go('insp');ACT.inl=()=>go('inl');ACT.mgr=()=>go('mgr');ACT.set=()=>go('set');ACT.stats=()=>go('stats');
 ACT.rep=n=>go('rep',n);ACT.ins=n=>go('ins',n);ACT.edit=n=>go('edit',n);
-
 /* ---------- home ---------- */
 V.home=async()=>{
  const reps=(await dbAll('r:')).filter(r=>ME.role!=='guard'||r.uid===ME.id).sort((a,b)=>b.start-a.start);
@@ -130,12 +136,11 @@ V.home=async()=>{
  let h=`<div class="top"><div><b>${esc(ME.name)}</b><small>${R[0]} · ${R[1]}</small></div><button class="b s k" data-a="logout">خروج</button></div><img class="lg" src="icon.svg" alt="SOS" onerror="this.onerror=null;this.style.display='none'">`;
  if(ME.role!=='officer')h+=SHIFT?`<button class="b big ok" data-a="shift">⏱ العودة إلى المناوبة الجارية</button>`:`<button class="b big" data-a="start">▶ بدء مناوبة</button>`;
  if(can)h+=`<div class="grid"><button class="b big" data-a="insp">🔍 جولة تفتيشية</button><button class="b big" data-a="inl">📋 سجل التفتيش</button></div>`;
- h+=`<div class="grid">`+(ME.role!=='guard'?`<button class="b" data-a="imp" data-v="rep">📥 استيراد تقرير</button>`:'')+`<button class="b" data-a="imp" data-v="team">🔄 استيراد إعدادات الفريق</button>`+(can?`<button class="b" data-a="mgr">👥 الحسابات</button><button class="b" data-a="texp">📤 تصدير إعدادات الفريق</button>`:'')+(ME.role==='officer'?`<button class="b" data-a="set">⚙ الإعدادات</button>`:'')+`</div>`;
- h+=`<h4>التقارير</h4>`+(reps.length?reps.map(r=>`<div class="card li" data-a="rep" data-v="${esc(r.no)}"><b>${esc(r.uname)}</b> <span class="${ST[r.check.status].at?'':''}${ST[r.check.status][2]}">●</span> <span class="pill">${STG[r.stage]}</span><small>${esc(r.no)} · ${pn(r.post)}</small></div>`).join(''):'<p class="mut c">لا توجد تقارير بعد</p>');
+ h+=`<div class="grid">`+(ME.role!=='guard'?`<button class="b" data-a="imp" data-v="rep">📥 استيراد تقرير</button>`:'')+`<button class="b" data-a="imp" data-v="team">🔄 استيراد إعدادات الفريق</button>`+(can?`<button class="b" data-a="stats">📊 الإحصائيات</button><button class="b" data-a="mgr">👥 الحسابات</button><button class="b" data-a="texp">📤 تصدير إعدادات الفريق</button>`:'')+(ME.role==='officer'?`<button class="b" data-a="set">⚙ الإعدادات</button>`:'')+`</div>`;
+ h+=`<h4>التقارير</h4>`+(reps.length?reps.map(r=>`<div class="card li" data-a="rep" data-v="${esc(r.no)}"><b>${esc(r.uname)}</b> <span class="${ST[r.check.status][2]}">●</span> <span class="pill">${STG[r.stage]}</span><small>${esc(r.no)} · ${pn(r.post)}</small></div>`).join(''):'<p class="mut c">لا توجد تقارير بعد</p>');
  view(h)};
 ACT.imp=k=>{const f=$('#fi');f.dataset.k=k;f.value='';f.click()};
 $('#fi').onchange=async e=>{const fs=[...e.target.files];if(fs.length&&ME)await importFiles(fs)};
-
 /* ---------- shift ---------- */
 V.start=()=>{const h=new Date().getHours(),ds=h>=7&&h<15?'M':h>=15&&h<23?'E':ME.sh;
  view(BK+`<div class="card"><h3>▶ بدء مناوبة</h3><label>موقع التمركز</label>${seg('sp',ME.post,Object.entries(POSTS).map(([k,v])=>[k,v.ar+' · '+v.en]))}<label>المناوبة</label>${seg('ss',ds,Object.entries(SH).map(([k,v])=>[k,v.ar+' ('+p2(v.from)+'–'+p2(v.to)+')']))}<button class="b big ok" data-a="sgo">ابدأ</button></div>`)};
@@ -155,22 +160,23 @@ function tick(){const s=SHIFT;if(!s||!$('#cd'))return;const iv=(CFG.round||120)*
  $('#cd').textContent=(d<0?'-':'')+p2(Math.floor(a/60000))+':'+p2(Math.floor(a%60000/1000));
  $('#cd').className='cdl'+(d<0?' late':d<600000?' warn':'');$('#cdt').textContent=d<0?'الجولة متأخرة!':'للجولة القادمة';
  $('#pb').style.width=Math.max(0,Math.min(100,(1-d/iv)*100))+'%';
- if(d<=0&&(!s.al||now()-s.al>=60000)){s.al=now();beep();toast('⏰ حان وقت الجولة',5000)}}
+ if(d<=0&&(!s.al||now()-s.al>=60000)){s.al=now();beep();toast('⏰ حان وقت الجولة',5000)}
+ if(d<-900000&&s.esc!==s.next){s.esc=s.next;dbSet('shift:'+s.uid,s);notify('⏰ جولة متأخرة','Guard: '+s.uname+'\nSite: '+POSTS[s.post].en+' / '+POSTS[s.post].ar+'\nمتأخرة '+Math.round(a/60000)+' دقيقة · Late')}}
 ACT.round=()=>scan(SHIFT.post,async r=>{if(!r)return;toast('جاري تحديد الموقع…');const pos=await gps(),late=Math.max(0,Math.round((now()-SHIFT.next)/60000));
  SHIFT.rounds.push({t:now(),manual:!!r.manual,pos,late});SHIFT.next=now()+(CFG.round||120)*60000;await dbSet('shift:'+ME.id,SHIFT);toast('✔ تم تسجيل الجولة');V.shift()});
 ACT.sos=async()=>{if(!confirm('إرسال نداء طوارئ SOS؟'))return;const pos=await gps(),i={ar:'نداء طوارئ SOS',en:'SOS Emergency',sev:'r',t:now(),desc:'',pos,photo:''};
- SHIFT.inc.push(i);await dbSet('shift:'+ME.id,SHIFT);location.href=waLink(incText(i))};
+ SHIFT.inc.push(i);await dbSet('shift:'+ME.id,SHIFT);await Promise.race([notify('🆘 SOS',incText(i)),sleep(2500)]);location.href=waLink(incText(i))};
 V.incf=()=>{PH={};view(BS+`<div class="card"><h3>⚠ تسجيل حادث</h3><label>نوع الحدث</label><select id="ity">${INC.map((x,i)=>`<option value="${i}">${x[0]} · ${x[1]}</option>`).join('')}</select><label>الخطورة</label>${seg('isv',INC[0][2],[['y','🟡 تنبيه / ملاحظة','y'],['r','🔴 طارئ','r']])}<label>وقت الحدث</label><input id="itm" type="time" value="${fT(now())}"><label>الوصف والإجراء المتخذ</label><textarea id="ides"></textarea><label>صورة (اختياري) — لا تصوّر الأطفال</label><input type="file" accept="image/*" capture="environment" data-ph="inc"><div id="pv_inc"></div><button class="b big ok" data-a="isave">حفظ</button></div>`)};
 ACT.isave=async()=>{const i=+gv('ity'),P=INC[i],desc=gv('ides').trim();if(i===INC.length-1&&!desc)return toast('اكتب الوصف');
  const[h,m]=(gv('itm')||fT(now())).split(':'),d=new Date();d.setHours(+h,+m,0,0);toast('جاري تحديد الموقع…');const pos=await gps();
- SHIFT.inc.push({ar:P[0],en:P[1],sev:rv('isv')||P[2],t:d.getTime(),desc,photo:PH.inc||'',pos});await dbSet('shift:'+ME.id,SHIFT);go('shift')};
-
+ const rec={ar:P[0],en:P[1],sev:rv('isv')||P[2],t:d.getTime(),desc,photo:PH.inc||'',pos};
+ SHIFT.inc.push(rec);await dbSet('shift:'+ME.id,SHIFT);if(rec.sev==='r')notify('🚨 حادث طارئ',incText(rec));go('shift')};
 /* ---------- checklist form ---------- */
-const dc=()=>({perim:{ok:'',n:''},light:{ok:'',n:''},safety:{ok:'',n:''},comm:{batt:'',pwr:'',solar:''},access:{done:'',vis:'',veh:''},status:'',ev:{time:'',desc:'',photo:''},hand:{done:'',to:''},assist:{yes:'',type:'',staff:'',det:''},notes:''});
+const dc=()=>({perim:{ok:'',n:''},light:{ok:'',n:''},safety:{ok:'',n:''},comm:{net:'',pwr:'',solar:''},access:{done:'',vis:'',veh:''},status:'',ev:{time:'',desc:'',photo:''},hand:{done:'',to:''},assist:{yes:'',type:'',staff:'',det:''},notes:''});
 function checkForm(c){
  const OK=[[1,'✔ سليم · OK','g'],[0,'✖ يوجد خلل · Defect','r']],YN=[[1,'نعم · Yes'],[0,'لا · No']];let h='';
  Q.forEach(q=>{h+=`<div class="card"><b>${q.ar}<small>${q.en}</small></b><p class="q">${q.q}</p>${seg(q.k,c[q.k].ok,OK)}<div data-if="${q.k}=0"><input id="${q.k}_n" placeholder="اذكر الخلل" value="${esc(c[q.k].n)}" style="margin-top:8px"></div></div>`});
- h+=`<div class="card"><b>وسائل الاتصال والطاقة<small>Comms & Power</small></b><label>نسبة شحن جهاز الاتصال / الهاتف الميداني (%)</label><input id="batt" type="number" inputmode="numeric" min="0" max="100" value="${esc(c.comm.batt)}"><label>حالة الكهرباء / المولد / الطاقة الشمسية</label>${seg('pwr',c.comm.pwr,Object.entries(PWN).map(([k,v])=>[k,v[0]+' · '+v[1]]))}<label>شحن البطارية الشمسية % (اختياري)</label><input id="solar" type="number" inputmode="numeric" value="${esc(c.comm.solar)}"></div>`;
+ h+=`<div class="card"><b>وسائل الاتصال والطاقة<small>Comms & Power</small></b><label>جودة الاتصال بالإنترنت</label>${seg('net',c.comm.net,Object.entries(NET).map(([k,v])=>[k,v[0]+' · '+v[1],v[2]]))}<label>حالة الكهرباء / المولد / الطاقة الشمسية</label>${seg('pwr',c.comm.pwr,Object.entries(PWN).map(([k,v])=>[k,v[0]+' · '+v[1]]))}<label>شحن البطارية الشمسية % (اختياري)</label><input id="solar" type="number" inputmode="numeric" value="${esc(c.comm.solar)}"></div>`;
  h+=`<div class="card"><b>سجل الزوار والمركبات<small>Access Control</small></b><p class="q">هل تم تسجيل كافة الزوار والمركبات الداخلة والخارجة في السجل الورقي؟</p>${seg('acc',c.access.done,YN)}<label>عدد الزوار (اختياري)</label><input id="vis" type="number" inputmode="numeric" value="${esc(c.access.vis)}"><label>عدد المركبات (اختياري)</label><input id="veh" type="number" inputmode="numeric" value="${esc(c.access.veh)}"></div>`;
  h+=`<div class="card"><b>مستوى الوضع الأمني العام<small>Security Status</small></b>${seg('st',c.status,[['n','🟢 عادي — لا حوادث ولا خروقات','g'],['y','🟡 تنبيه / ملاحظة — حدث غير اعتيادي تم التعامل معه','y'],['r','🔴 حادث أمني / طارئ — اختراق، سرقة، قصف، إصابة…','r']])}
  <div data-if="st=y,r"><label>وقت وقوع الحدث</label><input id="evt" type="time" value="${esc(c.ev.time||fT(now()))}"><label>وصف مختصر لما حدث والإجراء الذي اتخذه الحارس</label><textarea id="evd">${esc(c.ev.desc)}</textarea><label>إرفاق صورة (اختياري) — لا تصوّر الأطفال</label><input type="file" accept="image/*" capture="environment" data-ph="ev"><div id="pv_ev">${c.ev.photo?`<img class="th" src="${c.ev.photo}">`:''}</div></div></div>`;
@@ -180,8 +186,8 @@ function checkForm(c){
  return h}
 function readCheck(prev){const c=dc();let miss='';
  Q.forEach(q=>{const v=rv(q.k);if(v==='')miss=miss||q.ar;c[q.k]={ok:v,n:v==='0'?gv(q.k+'_n').trim():''}});
- const b=gv('batt');if(b===''||+b<0||+b>100)miss=miss||'نسبة شحن جهاز الاتصال (0-100)';
- const pw=rv('pwr');if(!pw)miss=miss||'حالة الطاقة';c.comm={batt:b,pwr:pw,solar:gv('solar')};
+ const nq=rv('net');if(!nq)miss=miss||'جودة الاتصال بالإنترنت';
+ const pw=rv('pwr');if(!pw)miss=miss||'حالة الطاقة';c.comm={net:nq,pwr:pw,solar:gv('solar')};
  const ac=rv('acc');if(ac==='')miss=miss||'سجل الزوار والمركبات';c.access={done:ac,vis:gv('vis'),veh:gv('veh')};
  const st=rv('st');if(!st)miss=miss||'مستوى الوضع الأمني';c.status=st;
  if(st&&st!=='n'){const d=gv('evd').trim();if(!d)miss=miss||'وصف الحدث';c.ev={time:gv('evt'),desc:d,photo:PH.ev||(prev&&prev.ev.photo)||''}}
@@ -194,18 +200,18 @@ V.end=()=>{PH={};const c=dc();c.status=SHIFT.inc.some(i=>i.sev==='r')?'r':SHIFT.
  view(BS+`<h3>⏹ إنهاء المناوبة — قائمة الفحص</h3><p class="mut">الجولات المنجزة: ${SHIFT.rounds.length} · الحوادث المسجلة: ${SHIFT.inc.length}</p>`+checkForm(c)+`<button class="b big ok" data-a="fin">✔ إنهاء وإنشاء التقرير</button>`)};
 ACT.fin=async()=>{const c=readCheck();if(!c)return;const s=SHIFT,end=now();
  const r={kind:'rep',no:s.no,uid:s.uid,uname:s.uname,role:ME.role,post:s.post,sh:s.sh,date:fD(s.start),start:s.start,end,rounds:s.rounds,inc:s.inc,check:c,stage:'guard',amend:[],orig:null,rev:null,log:[]};
- await dbSet('r:'+r.no,r);await dbDel('shift:'+ME.id);SHIFT=null;go('rep',r.no)};
-
+ await dbSet('r:'+r.no,r);await dbDel('shift:'+ME.id);SHIFT=null;if(c.status==='r')notify('🔴 تقرير مناوبة بحالة حادث',waText(r));go('rep',r.no)};
 /* ---------- report content ---------- */
 const flat=(o,p='',out={})=>{for(const k in o){if(k==='photo')continue;const v=o[k];if(v&&typeof v==='object')flat(v,p+k+'.',out);else out[p+k]=v}return out};
-const sv=(k,v)=>{if(/\.ok$/.test(k))return v==1?'سليم':'خلل';if(/(done|\.yes)$/.test(k))return v==1?'نعم':'لا';if(k==='status')return ST[v]?ST[v][0]:v;if(k==='comm.pwr')return PWN[v]?PWN[v][0]:v;return v===''||v==null?'—':v};
+const sv=(k,v)=>{if(/\.ok$/.test(k))return v==1?'سليم':'خلل';if(/(done|\.yes)$/.test(k))return v==1?'نعم':'لا';if(k==='status')return ST[v]?ST[v][0]:v;if(k==='comm.pwr')return PWN[v]?PWN[v][0]:v;if(k==='comm.net')return NET[v]?NET[v][0]:v;return v===''||v==null?'—':v};
 const chTxt=x=>(LB[x.k]||x.k)+': من ('+sv(x.k,x.f)+') إلى ('+sv(x.k,x.t)+')';
 function secs(r){const c=r.check,st=ST[c.status]||ST.n,S=[],ok=o=>[(o.ok==1?'سليم · OK':'يوجد خلل · Defect')+(o.ok==0&&o.n?'\n'+o.n:''),o.ok==1?'g':'r'];
  S.push({t:['بيانات المناوبة','Shift Information'],r:[['الاسم','Name',r.uname+' — '+ROLES[r.role][0]+' · '+ROLES[r.role][1]],['الموقع','Site',pn(r.post)],['المناوبة','Shift',shn(r.sh)],['التاريخ','Date',r.date],['من / إلى','From / To',fT(r.start)+' → '+fT(r.end)],['الوضع الأمني العام','Security Status',st[0]+' · '+st[1],st[2]]]});
  S.push({t:['الجولات الدورية','Patrol Rounds'],r:[['عدد الجولات','Rounds',String(r.rounds.length)],...r.rounds.map((o,i)=>['جولة '+(i+1),'Round '+(i+1),fT(o.t)+' — '+(o.manual?'تأكيد يدوي · Manual':'QR ✔')+(o.late>2?'\nمتأخرة '+o.late+' دقيقة · Late':'')+(o.pos?'\nGPS '+o.pos.lat+', '+o.pos.lng:''),o.late>2?'y':''])]});
  if(r.inc.length)S.push({t:['الحوادث المسجلة أثناء المناوبة','Logged Incidents'],r:r.inc.map(i=>[i.ar,i.en,fT(i.t)+' — '+(i.sev==='r'?'طارئ · Emergency':'ملاحظة · Observation')+(i.desc?'\n'+i.desc:'')+(i.pos?'\nGPS '+i.pos.lat+', '+i.pos.lng:''),i.sev,i.photo])});
  const L=Q.map(q=>{const o=ok(c[q.k]);return[q.ar,q.en,o[0],o[1]]});
- L.push(['شحن جهاز الاتصال','Comms Device Battery',c.comm.batt+'%',+c.comm.batt<20?'r':'']);
+ const nt=NET[c.comm.net];
+ L.push(['جودة الاتصال بالإنترنت','Internet Connection Quality',nt?nt[0]+' · '+nt[1]:'—',nt?nt[2]:'']);
  L.push(['حالة الطاقة','Power Status',(PWN[c.comm.pwr]||['—','—']).join(' · ')+(c.comm.solar?'\nالطاقة الشمسية · Solar: '+c.comm.solar+'%':'')]);
  L.push(['سجل الزوار والمركبات','Access Control Log',YNT(c.access.done)+(c.access.vis?'\nالزوار · Visitors: '+c.access.vis:'')+(c.access.veh?'\nالمركبات · Vehicles: '+c.access.veh:''),c.access.done==1?'g':'r']);
  S.push({t:['قائمة الفحص','Checklist'],r:L});
@@ -222,11 +228,10 @@ function waText(r){const c=r.check,E={n:'🟢 NORMAL',y:'🟡 OBSERVATION',r:'�
  if(!notes.length)notes.push('No security incidents reported during the shift.');
  return['🛡️ SOS PALESTINE - GUARD SHIFT REPORT','━━━━━━━━━━━━━━━━━━━━','👤 Guard: '+r.uname,'📍 Site: '+POSTS[r.post].en+' / '+POSTS[r.post].ar,'🕒 Shift: '+SH[r.sh].en+' | '+r.date,'📊 Status: '+E,'✅ CHECKLIST SUMMARY:',
  'Gates & Perimeter: '+(c.perim.ok==1?'Secure':bad(c.perim)),'Lighting: '+(c.light.ok==1?'Operational':bad(c.light)),'Safety Equipment: '+(c.safety.ok==1?'Checked & Ready':bad(c.safety)),
- 'Power: '+(PWN[c.comm.pwr]||['','-'])[1]+(c.comm.solar?' (Solar '+c.comm.solar+'%)':''),'Comms Battery: '+c.comm.batt+'%',
+ 'Power: '+(PWN[c.comm.pwr]||['','-'])[1]+(c.comm.solar?' (Solar '+c.comm.solar+'%)':''),'Internet Quality: '+(NET[c.comm.net]||['','-'])[1],
  'Visitors Logged: '+(c.access.done==1?'Yes':'No')+(c.access.vis?' | Visitors: '+c.access.vis:'')+(c.access.veh?' | Vehicles: '+c.access.veh:''),'Rounds completed: '+r.rounds.length,
  '📝 NOTES / INCIDENTS:',...notes,'🤝 HANDOVER:',c.hand.done==1?'Handed over to: '+c.hand.to+' at '+fT(r.end):'Not handed over',
  'Staff assistance: '+(c.assist.yes==1?'Yes — '+c.assist.type+(c.assist.det?' — '+c.assist.det:''):'No'),'━━━━━━━━━━━━━━━━━━━━','Report No: '+r.no].join('\n')}
-
 /* ---------- PDF ---------- */
 const FF='"Segoe UI",Tahoma,Arial,sans-serif';
 const li=src=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src});
@@ -235,9 +240,15 @@ class Doc{
  np(){const c=document.createElement('canvas');c.width=this.W;c.height=this.H;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,this.W,this.H);x.direction='rtl';x.textAlign='right';this.c=c;this.x=x;this.y=this.M;this.pg.push(c)}
  need(h){if(this.y+h>this.H-130)this.np()}
  wrap(t,w,f){const x=this.x;x.font=f;const o=[];String(t).split('\n').forEach(p=>{let l='';p.split(' ').forEach(wd=>{const s=l?l+' '+wd:wd;if(l&&x.measureText(s).width>w){o.push(l);l=wd}else l=s});o.push(l)});return o}
- async head(ar,en,no,col){const x=this.x;x.fillStyle='#071a33';x.fillRect(0,0,this.W,230);x.fillStyle=col;x.fillRect(0,230,this.W,10);
-  const lg=await li('icon.svg');if(lg)try{x.drawImage(lg,this.M,45,140,140)}catch(e){}
-  x.fillStyle='#fff';x.font='bold 46px '+FF;x.fillText(ar,this.W-this.M,100);x.fillStyle='#7fdfff';x.font='28px '+FF;x.fillText(en,this.W-this.M,148);x.fillStyle='#bfe';x.font='24px '+FF;x.fillText(no,this.W-this.M,195);this.y=270}
+ async head(ar,en,no,col){const x=this.x;
+  let lg=await li('logo.png');if(!lg)lg=await li('icon.svg');
+  if(lg){const iw=lg.width||130,ih=lg.height||130,k=Math.min(520/iw,130/ih),w=iw*k,h=ih*k;try{x.drawImage(lg,this.M,48,w,h)}catch(e){}}
+  x.fillStyle='#0b2a44';x.font='bold 44px '+FF;x.fillText(ar,this.W-this.M,92);
+  x.fillStyle='#009edb';x.font='28px '+FF;x.fillText(en,this.W-this.M,138);
+  x.fillStyle='#678';x.font='22px '+FF;x.fillText(no,this.W-this.M,176);
+  x.fillStyle='#cfcfcf';x.fillRect(this.M,214,this.W-2*this.M,3);
+  x.fillStyle=col;x.fillRect(this.W-this.M-260,211,260,9);
+  this.y=250}
  sec(ar,en){this.need(120);const x=this.x;this.y+=14;x.fillStyle='#0b3a5c';x.fillRect(this.M,this.y,this.W-2*this.M,56);x.fillStyle='#fff';x.font='bold 28px '+FF;x.fillText(ar+'  ·  '+en,this.W-this.M-16,this.y+39);this.y+=56}
  row(a,e,v,col,alt){const W=this.W-2*this.M,lw=W*.4,vw=W*.6-30,x=this.x;
   const la=this.wrap(a,lw-24,'bold 26px '+FF),le=e?this.wrap(e,lw-24,'20px '+FF):[],vl=this.wrap(v===''||v==null?'—':v,vw-10,'26px '+FF);
@@ -270,9 +281,10 @@ async function prepare(id,pdfFn,fileObj,label){PRE={id};const b=await pdfFn();if
  if(fileObj){PRE.copy=fileObj;PRE.file=await pack(fileObj,id+'.txt');const s=$('#bsend');if(s&&PRE.id===id){s.disabled=false;s.textContent=label}}}
 ACT.spdf=()=>{if(PRE.pdf)shareOut([PRE.pdf],'')};
 ACT.dpdf=()=>{if(PRE.pdf)dl(PRE.pdf);else toast('PDF قيد التجهيز…')};
-ACT.send=async()=>{if(!PRE.file||!PRE.pdf)return;const c=PRE.copy,ok=await shareOut([PRE.pdf,PRE.file],c.kind==='insp'?iWa(c):waText(c));
- if(ok&&c.kind==='rep'){await dbSet('r:'+c.no,c);toast('تم — حالة التقرير: '+STG[c.stage]);go('rep',c.no)}else if(ok)toast('تمت المشاركة')};
-
+ACT.send=async()=>{if(!PRE.file||!PRE.pdf)return;const c=PRE.copy,pdf=PRE.pdf,file=PRE.file,ok=await shareOut([pdf,file],c.kind==='insp'?iWa(c):waText(c));
+ if(!ok)return;
+ if(c.kind==='rep'){await dbSet('r:'+c.no,c);if(c.stage==='sent_off')notify('📄 تقرير مناوبة '+c.no,waText(c),pdf,c.no+'.pdf');toast('تم — حالة التقرير: '+STG[c.stage]);go('rep',c.no)}
+ else{notify('🔍 تقرير تفتيش '+c.id,iWa(c),pdf,c.id+'.pdf');toast('تمت المشاركة')}};
 /* ---------- report view / chain ---------- */
 function NEXT(r){if(r.stage==='guard'&&r.uid===ME.id)return{guard:'sent_leader',leader:'sent_sup',supervisor:'sent_off'}[r.role]||null;
  if(r.stage==='reviewed'&&ME.role==='leader')return'sent_sup';if(r.stage==='at_sup'&&ME.role==='supervisor')return'sent_off';return null}
@@ -293,10 +305,9 @@ ACT.esave=async no=>{const r=await dbGet('r:'+no),rs=gv('rs').trim();if(ME.role=
  for(const k in B)if(String(A[k])!==String(B[k]))ch.push({k,f:A[k]==null?'':A[k],t:B[k]});
  if(r.rev&&ln!==r.rev.note)ch.push({k:'rev.note',f:r.rev.note,t:ln});
  if(!ch.length&&nc.ev.photo===r.check.ev.photo)return toast('لا توجد تغييرات');
- if(ME.role==='supervisor'){if(!r.orig)r.orig=JSON.parse(JSON.stringify(r.check));r.amend.push({by:ME.name,at:now(),reason:rs,ch})}
+ if(ME.role==='supervisor'){if(!r.orig)r.orig=JSON.parse(JSON.stringify(r.check));r.amend.push({by:ME.name,at:now(),reason:rs,ch});notify('✏ تعديل مشرف على تقرير '+no,'السبب: '+rs+'\n'+ch.map(chTxt).join('\n'))}
  else await plog('تعديل صامت على '+no+': '+ch.map(chTxt).join(' | '));
  r.check=nc;if(ln!==null)r.rev.note=ln;await dbSet('r:'+no,r);toast('تم الحفظ');go('rep',no)};
-
 /* ---------- inspections ---------- */
 V.insp=()=>{const d=new Date(),dtl=fD(d)+'T'+fT(d);
  view(BK+`<div class="card"><h3>🔍 جولة تفتيشية مفاجئة</h3><label>المشرف القائم بالجولة</label><input value="${esc(ME.name)}" readonly><label>التاريخ والوقت</label><input id="idt" type="datetime-local" value="${dtl}"><label>الموقع / النقطة المفتشة</label><select id="ist">${CFG.sites.map((s,i)=>`<option value="${i}">${esc(s.replace('|',' · '))}</option>`).join('')}</select><label>الحارس / القائد المناوب</label><select id="ipr">${USERS.filter(u=>u.role==='guard'||u.role==='leader').map(u=>`<option value="${u.id}">${esc(u.name)} (${ROLES[u.role][0]})</option>`).join('')}</select><button class="b big" data-a="istart">▶ بدء التفتيش</button><p class="mut">يُسجَّل وقت الوصول الفعلي تلقائياً عند الضغط.</p></div>`)};
@@ -318,7 +329,9 @@ ACT.sclr=()=>{const c=$('#sig');c.getContext('2d').clearRect(0,0,c.width,c.heigh
 ACT.ifin=async()=>{const A=INS,al=rv('ial'),ov=rv('iov');if(!al||!ov)return toast('أكمل اليقظة والتقييم العام');
  const lead=A.whoRole==='leader',ans={};for(const x of IC.concat(lead?IL:[])){const v=rv('i_'+x[0]);if(v==='')return toast('أجب: '+x[1]);ans[x[0]]=+v}
  const sg=$('#sig'),rec={...A,al,ans,lead,ov,note:gv('icn').trim(),photo:PH.insp||'',sig:sg.hasInk?sg.toDataURL('image/png'):''};
- await dbSet('i:'+rec.id,rec);INS=null;go('ins',rec.id)};
+ await dbSet('i:'+rec.id,rec);INS=null;
+ if(ov==='1'||al==='r')notify('🔴 تفتيش: '+(ov==='1'?'تقييم غير مقبول':'حارس نائم/غائب'),iWa(rec));
+ go('ins',rec.id)};
 function isecs(i){const yn=(k,L)=>{const a=L.find(x=>x[0]===k);return[a[1],a[2],YNT(i.ans[k]),i.ans[k]==1?'g':'r']},al=AL[i.al],ov=OV[i.ov],S=[];
  S.push({t:['بيانات التفتيش','Inspection Metadata'],r:[['المشرف القائم بالجولة','Inspector',i.by],['وقت الوصول الفعلي (تلقائي)','Actual Arrival',fDT(i.arr)],['تاريخ ووقت التفتيش','Inspection Date/Time',fDT(i.dt)],['الموقع / النقطة','Post / Sector',i.site.replace('|',' · ')],['الحارس / القائد المناوب','On Duty',i.whoName+' — '+ROLES[i.whoRole][0]]]});
  S.push({t:['اليقظة والانضباط','Alertness & Conduct'],r:[['حالة اليقظة','Alertness',al[0]+' · '+al[1],i.al],yn('pos',IC),yn('chal',IC)]});
@@ -335,7 +348,20 @@ V.ins=async id=>{const i=await dbGet('i:'+id);if(!i)return go('home');
  prepare(id,()=>ipdf(i),ME.role==='supervisor'?i:null,'📨 إرسال إلى الأوفيسر (PDF + ملف)')};
 V.inl=async()=>{const l=(await dbAll('i:')).sort((a,b)=>b.arr-a.arr);
  view(BK+'<h3>📋 سجل التفتيش</h3>'+(l.length?l.map(i=>`<div class="card li" data-a="ins" data-v="${esc(i.id)}"><b>${esc(i.whoName)}</b> <span class="${OV[i.ov][2]}">${OV[i.ov][0]}</span><small>${fDT(i.arr)} · ${esc(i.site.split('|')[0])} · ${esc(i.by)}</small></div>`).join(''):'<p class="mut c">لا توجد تفتيشات</p>'))};
-
+/* ---------- stats ---------- */
+ACT.sp=n=>{SP=+n;V.stats()};
+V.stats=async()=>{const lim=SP?now()-SP*864e5:0,R=(await dbAll('r:')).filter(r=>r.start>=lim),I=(await dbAll('i:')).filter(i=>i.arr>=lim),per={};
+ let rounds=0,late=0,inc=0;
+ R.forEach(r=>{const l=r.rounds.filter(o=>o.late>2).length;rounds+=r.rounds.length;late+=l;inc+=r.inc.length;const p=per[r.uid]=per[r.uid]||{n:r.uname,rep:0,rd:0,late:0,red:0};p.rep++;p.rd+=r.rounds.length;p.late+=l;if(r.check.status==='r')p.red++});
+ const n=s=>R.filter(r=>r.check.status===s).length,box=(v,t,c)=>`<div class="card c"><div class="cdl ${c||''}" style="font-size:34px">${v}</div><small>${t}</small></div>`;
+ const pl=Object.values(per).sort((a,b)=>b.rep-a.rep),on=(await dbAll('ob:')).length;
+ view(BK+'<h3>📊 الإحصائيات</h3><p class="mut">حسب التقارير الموجودة على هذا الجهاز فقط.</p>'
+ +`<div class="grid">${[[7,'7 أيام'],[30,'30 يوماً'],[0,'الكل']].map(([v,t])=>`<button class="b ${SP===v?'ok':'k'}" data-a="sp" data-v="${v}">${t}</button>`).join('')}</div>`
+ +`<div class="grid">${box(R.length,'تقارير المناوبات')}${box(rounds,'جولات منفذة')}${box(late,'جولات متأخرة',late?'late':'')}${box(inc,'حوادث مسجلة',inc?'warn':'')}</div>`
+ +`<div class="card"><h4>الوضع الأمني</h4><div class="rw"><span>🟢 عادي</span><b>${n('n')}</b></div><div class="rw"><span>🟡 تنبيه / ملاحظة</span><b>${n('y')}</b></div><div class="rw"><span>🔴 حادث / طارئ</span><b>${n('r')}</b></div></div>`
+ +`<div class="card"><h4>حسب الحارس</h4>${pl.length?pl.map(p=>`<div class="rw"><b>${esc(p.n)}</b><span>تقارير ${p.rep} · جولات ${p.rd} · متأخرة ${p.late} · حوادث ${p.red}</span></div>`).join(''):'<p class="mut">لا بيانات</p>'}</div>`
+ +`<div class="card"><h4>التفتيشات (${I.length})</h4>${[4,3,2,1].map(k=>`<div class="rw"><span class="${OV[k][2]}">${OV[k][0]}</span><b>${I.filter(i=>+i.ov===k).length}</b></div>`).join('')}</div>`
+ +(on?`<p class="mut c">رسائل تنبيه بانتظار الإرسال: ${on}</p>`:''))};
 /* ---------- team / accounts ---------- */
 const mcard=u=>`<div class="card"><b>${u.id} · ${ROLES[u.role][0]}</b><label>الاسم</label><input id="n_${u.id}" value="${esc(u.name)}"><label>رقم سري جديد (اتركه فارغاً للإبقاء)</label><input id="p_${u.id}" inputmode="numeric" maxlength="8"><div class="grid"><div><label>الموقع</label><select id="po_${u.id}">${Object.entries(POSTS).map(([k,v])=>`<option value="${k}" ${u.post===k?'selected':''}>${v.ar}</option>`).join('')}</select></div><div><label>المناوبة</label><select id="sh_${u.id}">${Object.entries(SH).map(([k,v])=>`<option value="${k}" ${u.sh===k?'selected':''}>${v.ar}</option>`).join('')}</select></div></div>${ME.role==='officer'?`<label>الدور</label><select id="ro_${u.id}">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${u.role===k?'selected':''}>${v[0]}</option>`).join('')}</select>`:''}<button class="b" data-a="usave" data-v="${u.id}">حفظ</button>${ME.role==='officer'&&u.id!==ME.id?`<button class="b r" data-a="udel" data-v="${u.id}">حذف</button>`:''}</div>`;
 V.mgr=()=>{const can=u=>ME.role==='officer'||u.role==='guard'||u.role==='leader';
@@ -362,18 +388,20 @@ async function importFiles(fs){let ok=0;const bad=[];
   else if(o.kind==='insp'){if(ME.role!=='supervisor'&&ME.role!=='officer')throw new Error('التفتيش للمشرف والأوفيسر فقط');await dbSet('i:'+o.id,o);ok++}
   else throw new Error('نوع ملف غير معروف')}catch(e){bad.push(e.message)}}
  toast('تم استيراد '+ok+(bad.length?' — '+bad.join(' | '):''),6000);go('home')}
-
 /* ---------- officer settings ---------- */
-V.set=async()=>{const pv=(await dbGet('priv'))||[],show=localStorage.pl==='1';
+V.set=async()=>{const pv=(await dbGet('priv'))||[],show=localStorage.pl==='1',on=(await dbAll('ob:')).length;
  view(BK+`<h3>⚙ الإعدادات</h3><div class="card"><label>رقم واتساب الأوفيسر (بصيغة دولية)</label><input id="swa" inputmode="numeric" value="${esc(CFG.wa)}"><label>البريد الإلكتروني للأوفيسر</label><input id="sem" type="email" value="${esc(CFG.email)}"><label>فترة الجولة (بالدقائق)</label><input id="srd" type="number" value="${CFG.round||120}"><button class="b" data-a="ssave">حفظ</button></div>
+ <div class="card"><h4>✈ التنبيهات التلقائية (تلجرام + بريد)</h4><label>رابط سكربت جوجل (ينتهي بـ /exec)</label><input id="sgs" dir="ltr" value="${esc(CFG.gs||'')}"><label>رقم شات التلجرام (Chat ID)</label><input id="stg" dir="ltr" inputmode="numeric" value="${esc(CFG.tg||'')}"><button class="b" data-a="ssave">حفظ</button><button class="b ok" data-a="stest">🧪 اختبار الإرسال</button><p class="mut">رسائل بانتظار الإرسال: ${on}</p>${on?`<button class="b k" data-a="sflush">إرسال المعلّق الآن</button>`:''}<p class="mut">بعد الحفظ اضغط «تصدير إعدادات الفريق» ليستوردها الجميع.</p></div>
  <div class="card"><h4>📍 مواقع التفتيش</h4>${CFG.sites.map((s,i)=>`<div class="rw"><span>${esc(s.replace('|',' · '))}</span><button class="b s r" data-a="sdel" data-v="${i}">حذف</button></div>`).join('')}<input id="sa" placeholder="الاسم بالعربي" style="margin-top:8px"><input id="se" placeholder="Name in English" style="margin-top:6px"><button class="b" data-a="sadd">إضافة موقع</button></div>
  <div class="card c"><h4>🖨 رموز QR للطباعة (تحتاج إنترنت)</h4><div class="grid">${Object.keys(POSTS).map(k=>`<div><img class="th" style="margin:auto" src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('SOS|'+k)}" alt="QR"><small>${POSTS[k].ar} — SOS|${k}</small></div>`).join('')}</div></div>
  <div class="card"><h4>🕵 السجل الخاص (يراه الأوفيسر فقط)</h4><button class="b" data-a="plt">${show?'إخفاء السجل':'إظهار السجل'}</button>${show?(pv.length?pv.slice().reverse().map(a=>`<div class="rw"><span>${esc(a.txt)}</span><small>${fDT(a.at)}<br>${esc(a.by)}</small></div>`).join(''):'<p class="mut">السجل فارغ</p>'):''}</div>`)};
-ACT.ssave=async()=>{CFG.wa=gv('swa').replace(/\D/g,'')||CFG.wa;CFG.email=gv('sem').trim();CFG.round=Math.max(5,+gv('srd')||120);await persist();await plog('تعديل إعدادات الأوفيسر');toast('تم الحفظ')};
+ACT.ssave=async()=>{CFG.wa=gv('swa').replace(/\D/g,'')||CFG.wa;CFG.email=gv('sem').trim();CFG.round=Math.max(5,+gv('srd')||120);CFG.gs=gv('sgs').trim();CFG.tg=gv('stg').trim();await persist();await plog('تعديل إعدادات الأوفيسر');toast('تم الحفظ')};
+ACT.stest=async()=>{await ACT.ssave();if(!CFG.gs)return toast('ألصق رابط السكربت أولاً');toast('جاري الإرسال…');
+ try{await postGS({title:'✅ اختبار SOS Guard',text:'✅ SOS Guard test — '+fDT(now())});toast('تم الإرسال — تحقق من التلجرام والبريد',5000)}catch(e){toast('فشل: '+e.message+' (تأكد من الرابط وأن الوصول Anyone)',6000)}};
+ACT.sflush=async()=>{toast('جاري الإرسال…');await flush();V.set()};
 ACT.sadd=async()=>{const a=gv('sa').trim(),e=gv('se').trim();if(!a)return toast('اكتب الاسم');CFG.sites.push(a+'|'+(e||a));await persist();await plog('إضافة موقع: '+a);V.set()};
 ACT.sdel=async i=>{if(!confirm('حذف الموقع؟'))return;const s=CFG.sites.splice(+i,1);await persist();await plog('حذف موقع: '+s[0]);V.set()};
 ACT.plt=()=>{localStorage.pl=localStorage.pl==='1'?'0':'1';V.set()};
-
 /* ---------- init ---------- */
 (()=>{const c=$('#rain'),x=c.getContext('2d');let w,h,d;const set=()=>{w=c.width=innerWidth;h=c.height=innerHeight;d=Array(Math.floor(w/16)).fill(0).map(()=>Math.random()*h/16)};set();addEventListener('resize',set);
  setInterval(()=>{if(document.hidden)return;x.fillStyle='rgba(5,11,24,.12)';x.fillRect(0,0,w,h);x.fillStyle='#00ff9d';x.font='14px monospace';d.forEach((y,i)=>{x.fillText(String.fromCharCode(0x30A0+Math.random()*60),i*16,y*16);d[i]=y*16>h&&Math.random()>.975?0:y+1})},70)})();
@@ -383,4 +411,5 @@ ACT.plt=()=>{localStorage.pl=localStorage.pl==='1'?'0':'1';V.set()};
   navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had){const b=$('#banner');b.innerHTML='يوجد تحديث جديد <button onclick="location.reload()">تحديث الآن</button>';b.hidden=false}})}
  const sid=await dbGet('session');
  if(sid&&user(sid)){ME=user(sid);SHIFT=(await dbGet('shift:'+sid))||null;go(SHIFT?'shift':'home')}else go('login');
+ flush();
 })();
